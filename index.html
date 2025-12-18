@@ -225,6 +225,48 @@
 
     window.addEventListener('resize', init);
     init(); animate();
+    /* 手机端适配：针对屏幕宽度小于 768px 的设备 */
+@media (max-width: 768px) {
+    /* 1. 让顶部导航栏可以左右滑动，不遮挡 logo */
+    nav {
+        padding: 20px;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .nav-links {
+        margin-top: 15px;
+        gap: 15px;
+        overflow-x: auto; /* 支持左右滑动查看目录 */
+        width: 100%;
+        padding-bottom: 10px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .nav-links a {
+        font-size: 0.6rem; /* 缩小字体 */
+        white-space: nowrap; /* 禁止换行 */
+    }
+
+    /* 2. 调整作品网格：从 5 列改为 1 列或 2 列 */
+    .project-grid {
+        grid-template-columns: repeat(2, 1fr); /* 手机端显示两列 */
+        gap: 20px;
+        padding: 0 15px;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .img-wrap {
+        width: 120px; height: 120px; /* 减小图标尺寸 */
+        margin: 0 auto 10px;
+    }
+
+    /* 3. 首页大标题缩小 */
+    .hero-text h1 {
+        font-size: 1.8rem;
+        letter-spacing: 4px;
+    }
+}
 </script>
 </body>
+
 </html>
