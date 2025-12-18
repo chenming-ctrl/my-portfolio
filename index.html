@@ -9,7 +9,7 @@
 
     <style>
         :root { --bg-blur: 0px; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #fff; font-family: "Helvetica Neue", sans-serif; overflow: hidden; touch-action: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #fff; font-family: "Helvetica Neue", sans-serif; overflow: hidden; touch-action: none; -webkit-font-smoothing: antialiased; }
         #canvas-container { position: fixed; width: 100%; height: 100%; z-index: 1; transition: filter 1s ease; filter: blur(var(--bg-blur)); pointer-events: none; }
         
         /* --- 导航栏 --- */
@@ -20,68 +20,80 @@
         .nav-links a { text-decoration: none; color: #999; font-size: 0.6rem; text-transform: uppercase; cursor: pointer; transition: 0.3s; }
         .nav-links a:hover { color: #000; }
 
-        /* --- 左下角 BACK 按钮 --- */
+        /* --- 左下角返回按钮 --- */
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
         .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
-        .back-btn { font-size: 0.5rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; transition: 0.3s; border: 1px solid transparent; padding: 10px 0; }
+        .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; transition: 0.3s; padding: 10px; }
         .back-btn:hover { color: #000; letter-spacing: 5px; }
 
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
 
-        /* --- 堆叠与编辑样式 --- */
-        .neural-grid { display: flex; gap: 50px; justify-content: center; align-items: center; width: 90%; flex-wrap: wrap; padding: 40px; }
+        /* --- 首页文字样式 (强制保留原始大小) --- */
+        #lvl1 h1 { font-size: 3.5rem; font-weight: 100; letter-spacing: 20px; margin-bottom: 20px; text-transform: uppercase; }
+        #lvl1 p { font-size: 0.55rem; color: #aaa; letter-spacing: 8px; text-transform: uppercase; }
+
+        /* --- 堆叠网格与标题阻尼动画 --- */
+        .neural-grid { display: flex; gap: 50px; justify-content: center; align-items: center; width: 95%; flex-wrap: wrap; padding: 20px; }
         .stack-container { position: relative; width: 160px; height: 200px; cursor: pointer; text-align: center; perspective: 1000px; }
+        
+        /* 占位符样式 */
+        .placeholder-box { width: 100%; height: 100%; background: #f5f5f5; display: flex; align-items: center; justify-content: center; color: #ddd; font-size: 1.5rem; }
+
         .neural-stack { position: relative; width: 130px; height: 130px; transform-style: preserve-3d; margin: 0 auto; transition: 0.5s; }
         .neural-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; border: 1px solid rgba(0,0,0,0.06); overflow: hidden; transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 5px 15px rgba(0,0,0,0.03); }
         .neural-layer img { width: 100%; height: 100%; object-fit: cover; }
         
         .layer-1 { z-index: 5; }
         .layer-2 { z-index: 4; transform: translate(8px, -8px); opacity: 0.7; }
-        .layer-3 { z-index: 3; transform: translate(16px, -16px); opacity: 0.4; }
 
         .stack-container:hover .layer-1 { transform: translate(-20px, -20px) rotate(-5deg); box-shadow: 20px 20px 40px rgba(0,0,0,0.1); }
-        .stack-container:hover .layer-2 { transform: translate(10px, 5px) rotate(3deg); opacity: 0.9; }
-        .stack-container:hover .layer-3 { transform: translate(25px, 20px) rotate(8deg); opacity: 0.6; }
         
-        .stack-label { margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; outline: none; border-bottom: 1px solid transparent; display: inline-block; }
-        .stack-container:hover .stack-label { color: #000; }
-        .admin-editable:hover { border-bottom: 1px dotted #999; color: #000; }
+        /* 标题文字阻尼动画与变色 */
+        .stack-label { 
+            margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; 
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); /* 阻尼感曲线 */
+            outline: none; border-bottom: 1px solid transparent; display: inline-block;
+        }
+        .stack-container:hover .stack-label { color: #000; transform: translateY(5px); letter-spacing: 4px; }
+        .admin-editable:hover { border-bottom: 1px dotted #ccc; }
 
         /* --- Miro 画布 --- */
-        #lvl4 { background: #fbfbfb; z-index: 6000; cursor: grab; }
+        #lvl4 { background: #fbfbfb; z-index: 6000; }
         .lvl4-header { position: fixed; top: 100px; left: 60px; z-index: 7000; pointer-events: none; }
         .lvl4-project-title { font-size: 1.8rem; font-weight: 200; letter-spacing: 8px; text-transform: uppercase; color: #000; outline: none; pointer-events: auto; }
         
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
-        .miro-item { position: absolute; background: white; padding: 5px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 2px solid transparent; transition: border 0.3s; }
+        .miro-item { position: absolute; background: white; padding: 5px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 2px solid transparent; }
         .miro-item.selected { border-color: #000; }
         .miro-item img { display: block; width: 100%; height: auto; pointer-events: none; }
         .resizer { width: 14px; height: 14px; background: #000; position: absolute; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; border: 2px solid #fff; opacity: 0; }
+        .miro-item.selected .resizer { opacity: 1; }
         
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 7000; display: flex; gap: 10px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
-        .ui-btn:hover { background: #000; color: #fff; border-color: #000; }
+        .ui-btn:hover { background: #000; color: #fff; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.4rem; color: #ccc; cursor: pointer; z-index: 7001; text-align: right; letter-spacing: 1px; }
+
+        /* 移动端细微调整：仅调整布局，不改字体大小 */
+        @media (max-width: 768px) {
+            nav { padding: 30px 40px; }
+            .back-btn-container { left: 40px; }
+            .stack-container { width: 140px; }
+            .neural-stack { width: 110px; height: 110px; }
+        }
     </style>
 </head>
 <body>
 
-<nav id="mainNav">
-    <div class="nav-logo" onclick="showLevel(1)">CHENMING</div>
-    <div id="dynamicNav" class="nav-links"></div>
-</nav>
-
-<div id="backBtnContainer" class="back-btn-container">
-    <div class="back-btn" onclick="handleBack()">← BACK</div>
-</div>
-
+<nav id="mainNav"><div class="nav-logo" onclick="showLevel(1)">CHENMING</div><div id="dynamicNav" class="nav-links"></div></nav>
+<div id="backBtnContainer" class="back-btn-container"><div class="back-btn" onclick="handleBack()">← BACK</div></div>
 <div id="canvas-container"><canvas id="particleCanvas"></canvas></div>
 
 <div class="view-layer active" id="lvl1">
     <div onclick="showLevel(2)" style="cursor:pointer; text-align:center">
-        <h1 style="font-size:3.5rem; font-weight:100; letter-spacing:20px; margin-bottom: 20px;">CHENMING LI</h1>
-        <p style="font-size:0.55rem; color:#aaa; letter-spacing:8px; text-transform: uppercase;">Architecture & Computation Portfolio</p>
+        <h1>CHENMING LI</h1>
+        <p>Architecture & Computation Portfolio</p>
     </div>
 </div>
 
@@ -91,18 +103,19 @@
 <div id="lvl4" class="view-layer">
     <div class="lvl4-header">
         <div id="lvl4CatTag" style="font-size: 0.45rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px;">CATEGORY</div>
-        <div id="lvl4Title" class="lvl4-project-title" spellcheck="false">PROJECT TITLE</div>
+        <div id="lvl4Title" class="lvl4-project-title" onblur="saveToCloud()">PROJECT TITLE</div>
     </div>
     <div id="miro-viewport"></div>
     <div class="miro-ui" id="adminControls" style="display:none;">
         <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ IMAGE</button>
-        <button class="ui-btn" onclick="saveToCloud()">SAVE</button>
+        <button class="ui-btn" onclick="saveToCloud()">SAVE LAYOUT</button>
     </div>
-    <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN<br><span style="opacity:0.5">ESC TO BACK</span></div>
+    <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN</div>
     <input type="file" id="fileInput" hidden accept="image/*" onchange="handleUpload(event)">
 </div>
 
 <script>
+    // --- 1. FIREBASE 配置 ---
     const firebaseConfig = {
         apiKey: "AIzaSyDIQ48e3qR33xhvwDawYsyzZQpexiHAHNM",
         authDomain: "chenming-portfolio.firebaseapp.com",
@@ -110,35 +123,33 @@
         projectId: "chenming-portfolio",
         storageBucket: "chenming-portfolio.firebasestorage.app",
         messagingSenderId: "645974382810",
-        appId: "1:645974382810:web:0d314656d71dedbb6e6de3",
-        measurementId: "G-6QT90T8DJ6"
+        appId: "1:645974382810:web:0d314656d71dedbb6e6de3"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     const portfolio = {
-        'Architecture': { thumb: 'arch.jpg', projects: [{id:'a1', title:'Urban Parasite'}, {id:'a2', title:'Flowing Museum'}, {id:'a3', title:'Vertical Forest'}, {id:'a4', title:'Zen Pavillion'}]},
-        'Computational': { thumb: 'comp.jpg', projects: [{id:'c1', title:'Algorithmic Mesh'}, {id:'c2', title:'Cellular Growth'}, {id:'c3', title:'Bionic Structure'}]},
-        'Research': { thumb: 'research.jpg', projects: [{id:'r1', title:'Material Agency'}, {id:'r2', title:'Post-Human Urbanism'}, {id:'r3', title:'Carbon Neutrality'}]},
-        'Interior': { thumb: 'interior.jpg', projects: [{id:'i1', title:'Minimal Loft'}, {id:'i2', title:'Sensory Gallery'}, {id:'i3', title:'Light Space'}]},
-        'Visuals': { thumb: 'visual.jpg', projects: [{id:'v1', title:'Cyber City'}, {id:'v2', title:'Ethereal Series'}, {id:'v3', title:'Digital Nature'}, {id:'v4', title:'Unreal Engine 5'}]}
+        'Architecture': { thumb: 'arch.jpg', projects: [{id:'a1', title:'Urban Parasite'}, {id:'a2', title:'Flowing Museum'}, {id:'a3', title:'Vertical Forest'}]},
+        'Computational': { thumb: 'comp.jpg', projects: [{id:'c1', title:'Algorithmic Mesh'}, {id:'c2', title:'Cellular Growth'}]},
+        'Research': { thumb: 'research.jpg', projects: [{id:'r1', title:'Material Agency'}]},
+        'Interior': { thumb: 'interior.jpg', projects: [{id:'i1', title:'Minimal Loft'}]},
+        'Visuals': { thumb: 'visual.jpg', projects: [{id:'v1', title:'Cyber City'}]}
     };
 
     let isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
     let dragTarget = null, resizeTarget = null, startX, startY, startW, selectedItem = null;
 
+    // --- 2. 管理功能 ---
     function checkUnlock() {
         if(isAdmin) return;
-        if(prompt("Admin Password:") === "li123") enableAdminMode();
-    }
-
-    function enableAdminMode() {
-        isAdmin = true;
-        document.getElementById('adminControls').style.display = 'flex';
-        document.getElementById('lvl4Title').contenteditable = true;
-        document.getElementById('adminInfo').innerHTML = "ADMIN: ACTIVE<br><span style='color:#34A853'>AUTO-SAVE ON</span>";
-        if(currentLvl === 3) renderProjGrid();
+        if(prompt("Admin Password:") === "li123") {
+            isAdmin = true;
+            document.getElementById('adminControls').style.display = 'flex';
+            document.getElementById('lvl4Title').contenteditable = true;
+            document.getElementById('adminInfo').innerText = "ADMIN: ACTIVE";
+            if(currentLvl === 3) renderProjGrid();
+        }
     }
 
     function handleBack() {
@@ -147,22 +158,12 @@
         else if (currentLvl === 2) showLevel(1);
     }
 
-    window.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            if (document.activeElement.classList.contains('stack-label') || document.activeElement.id === 'lvl4Title') {
-                document.activeElement.blur();
-            } else { handleBack(); }
-        }
-    });
-
     async function syncFromCloud() {
-        const snapshot = await db.ref('portfolio_data').once('value');
-        if(snapshot.exists()) {
-            const data = snapshot.val();
+        const snap = await db.ref('portfolio_data').once('value');
+        if(snap.exists()) {
+            const data = snap.val();
             Object.keys(portfolio).forEach(cat => {
-                portfolio[cat].projects.forEach(p => {
-                    if(data[p.id]) { p.title = data[p.id].title || p.title; p.layout = data[p.id].layout || []; }
-                });
+                portfolio[cat].projects.forEach(p => { if(data[p.id]) { p.title = data[p.id].title || p.title; p.layout = data[p.id].layout || []; } });
             });
         }
     }
@@ -172,10 +173,7 @@
         const items = Array.from(document.querySelectorAll('.miro-item')).map(el => ({
             src: el.querySelector('img').src, x: el.style.left, y: el.style.top, w: el.style.width
         }));
-        await db.ref('portfolio_data/' + currentProj.id).update({
-            title: document.getElementById('lvl4Title').innerText,
-            layout: items
-        });
+        await db.ref('portfolio_data/' + currentProj.id).update({ title: document.getElementById('lvl4Title').innerText, layout: items });
     }
 
     async function saveTitleFromL3(projId, newTitle) {
@@ -183,20 +181,15 @@
         await db.ref('portfolio_data/' + projId).update({ title: newTitle });
     }
 
+    // --- 3. 渲染引擎 ---
     async function showLevel(lvl, cat = '') {
         await syncFromCloud();
         currentLvl = lvl; if(cat) currentCat = cat;
         document.querySelectorAll('.view-layer').forEach(el => el.classList.remove('active'));
         document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
-
         if(lvl === 2) renderCatGrid();
         if(lvl === 3) renderProjGrid();
-        if(lvl === 4) {
-            document.getElementById('lvl4Title').innerText = currentProj.title;
-            document.getElementById('lvl4CatTag').innerText = currentCat;
-            loadBoard(); resetViewport();
-        }
-        
+        if(lvl === 4) { document.getElementById('lvl4Title').innerText = currentProj.title; loadBoard(); resetViewport(); }
         document.getElementById('lvl' + lvl).classList.add('active');
         document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
         document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
@@ -204,14 +197,11 @@
     }
 
     function renderCatGrid() {
-        const grid = document.getElementById('catGrid');
-        grid.innerHTML = Object.keys(portfolio).map(cat => {
-            const topThumb = portfolio[cat].projects[0]?.layout?.slice(-1)[0]?.src || null;
+        document.getElementById('catGrid').innerHTML = Object.keys(portfolio).map(cat => {
             return `<div class="stack-container" onclick="showLevel(3, '${cat}')">
                 <div class="neural-stack">
-                    <div class="neural-layer layer-3"></div>
-                    <div class="neural-layer layer-2">${topThumb ? `<img src="${topThumb}">` : ``}</div>
-                    <div class="neural-layer layer-1"><img src="${portfolio[cat].thumb}"></div>
+                    <div class="neural-layer layer-2"></div>
+                    <div class="neural-layer layer-1"><img src="${portfolio[cat].thumb}" onerror="this.outerHTML='<div class=\'placeholder-box\'>⬡</div>'"></div>
                 </div>
                 <div class="stack-label">${cat}</div>
             </div>`;
@@ -219,144 +209,94 @@
     }
 
     function renderProjGrid() {
-        const grid = document.getElementById('projGrid');
-        grid.innerHTML = portfolio[currentCat].projects.map(p => {
+        document.getElementById('projGrid').innerHTML = portfolio[currentCat].projects.map(p => {
             const topImg = p.layout?.slice(-1)[0]?.src;
-            return `<div class="stack-container" id="sc-${p.id}">
+            return `<div class="stack-container">
                 <div class="neural-stack" onclick="enterProject('${p.id}')">
-                    <div class="neural-layer layer-3"></div>
                     <div class="neural-layer layer-2"></div>
-                    <div class="neural-layer layer-1">${topImg ? `<img src="${topImg}">` : `<div style="padding:40px; color:#eee">⬡</div>`}</div>
+                    <div class="neural-layer layer-1">${topImg ? `<img src="${topImg}">` : `<div class="placeholder-box">⬡</div>`}</div>
                 </div>
-                <div class="stack-label ${isAdmin?'admin-editable':''}" 
-                     contenteditable="${isAdmin}" 
-                     onblur="saveTitleFromL3('${p.id}', this.innerText)"
-                     onclick="event.stopPropagation()">${p.title}</div>
+                <div class="stack-label ${isAdmin?'admin-editable':''}" contenteditable="${isAdmin}" onblur="saveTitleFromL3('${p.id}', this.innerText)" onclick="event.stopPropagation()">${p.title}</div>
             </div>`;
         }).join('');
     }
 
-    function enterProject(id) {
-        currentProj = portfolio[currentCat].projects.find(p => p.id === id);
-        showLevel(4);
-    }
+    function enterProject(id) { currentProj = portfolio[currentCat].projects.find(p => p.id === id); showLevel(4); }
 
-    // Miro Viewport Engine
-    const viewport = document.getElementById('miro-viewport');
-    const board = document.getElementById('lvl4');
+    // --- 4. MIRO 引擎 ---
+    const vp = document.getElementById('miro-viewport');
+    const bd = document.getElementById('lvl4');
 
-    board.addEventListener('wheel', e => {
+    bd.addEventListener('touchstart', e => { if(e.touches.length === 1) handleStart(e.touches[0].clientX, e.touches[0].clientY, e.target); });
+    bd.onmousedown = (e) => handleStart(e.clientX, e.clientY, e.target);
+
+    function handleStart(x, y, target) {
         if(currentLvl !== 4) return;
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        const newZoom = Math.min(Math.max(zoom * delta, 0.1), 5);
-        panX = e.clientX - (e.clientX - panX) * (newZoom / zoom);
-        panY = e.clientY - (e.clientY - panY) * (newZoom / zoom);
-        zoom = newZoom; updateViewport();
-    }, { passive: false });
-
-    board.onmousedown = (e) => {
-        if(currentLvl !== 4 || e.target.id === 'lvl4Title') return;
-        if(e.button === 1 || e.button === 2) { isPanning = true; return; }
-        const item = e.target.closest('.miro-item');
+        const item = target.closest('.miro-item');
         if(selectedItem) selectedItem.classList.remove('selected');
         if(item) {
-            selectedItem = item; item.classList.add('selected'); viewport.appendChild(item);
-            if(e.target.classList.contains('resizer')) { isResizing = true; resizeTarget = item; startX = e.clientX; startW = item.offsetWidth; }
-            else { isDragging = true; dragTarget = item; startX = (e.clientX/zoom)-item.offsetLeft; startY = (e.clientY/zoom)-item.offsetTop; }
-        }
-    };
+            selectedItem = item; item.classList.add('selected'); vp.appendChild(item);
+            if(target.classList.contains('resizer')) { isResizing = true; startX = x; startW = item.offsetWidth; }
+            else { isDragging = true; dragTarget = item; startX = (x/zoom)-item.offsetLeft; startY = (y/zoom)-item.offsetTop; }
+        } else { isPanning = true; startX = x - panX; startY = y - panY; }
+    }
 
-    window.onmousemove = (e) => {
-        updateMouse(e.clientX, e.clientY);
-        if(currentLvl !== 4) return;
-        if(isPanning) { panX += e.movementX; panY += e.movementY; updateViewport(); }
-        else if(isResizing) { resizeTarget.style.width = (startW + (e.clientX - startX) / zoom) + 'px'; }
-        else if(isDragging) { dragTarget.style.left = (e.clientX/zoom-startX)+'px'; dragTarget.style.top = (e.clientY/zoom-startY)+'px'; }
-    };
-    window.onmouseup = () => isPanning = isDragging = isResizing = false;
+    window.onmousemove = (e) => handleMove(e.clientX, e.clientY);
+    bd.addEventListener('touchmove', e => { if(e.touches.length === 1) handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+
+    function handleMove(x, y) {
+        if(isPanning) { panX = x - startX; panY = y - startY; updateViewport(); }
+        else if(isResizing) { selectedItem.style.width = (startW + (x - startX) / zoom) + 'px'; }
+        else if(isDragging) { dragTarget.style.left = (x/zoom-startX)+'px'; dragTarget.style.top = (y/zoom-startY)+'px'; }
+    }
+    window.onmouseup = window.ontouchend = () => isPanning = isDragging = isResizing = false;
+    bd.addEventListener('wheel', e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; zoom = Math.min(Math.max(zoom * d, 0.1), 5); updateViewport(); }, {passive:false});
+    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
+    function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
 
     function loadBoard() {
-        viewport.innerHTML = '';
-        (currentProj.layout || []).forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'miro-item'; div.style.left = item.x; div.style.top = item.y; div.style.width = item.w;
-            div.innerHTML = `<img src="${item.src}"><div class="resizer"></div>`;
-            viewport.appendChild(div);
+        vp.innerHTML = '';
+        (currentProj.layout || []).forEach(it => {
+            const d = document.createElement('div'); d.className = 'miro-item'; d.style.left = it.x; d.style.top = it.y; d.style.width = it.w;
+            d.innerHTML = `<img src="${it.src}"><div class="resizer"></div>`; vp.appendChild(d);
         });
     }
 
-    function handleUpload(e) {
+    function handleUpload(event) {
+        const file = event.target.files[0]; if(!file) return;
         const reader = new FileReader();
-        reader.onload = (ev) => {
-            const div = document.createElement('div');
-            div.className = 'miro-item'; div.style.width = '300px';
-            div.style.left = (window.innerWidth/2-panX)/zoom + 'px'; div.style.top = (window.innerHeight/2-panY)/zoom + 'px';
-            div.innerHTML = `<img src="${ev.target.result}"><div class="resizer"></div>`;
-            viewport.appendChild(div);
-        };
-        reader.readAsDataURL(e.target.files[0]);
+        reader.onload = (e) => {
+            const div = document.createElement('div'); div.className = 'miro-item'; div.style.width = '300px';
+            div.style.left = (window.innerWidth/2-panX)/zoom+'px'; div.style.top = (window.innerHeight/2-panY)/zoom+'px';
+            div.innerHTML = `<img src="${e.target.result}"><div class="resizer"></div>`; vp.appendChild(div);
+        }; reader.readAsDataURL(file);
     }
-    
-    function updateViewport() { viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
-    function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
 
-    // Particle System
-    const canvas = document.getElementById('particleCanvas');
-    const ctx = canvas.getContext('2d');
-    let particles = [];
-    let m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
+    // --- 5. 粒子系统 (优化版) ---
+    const cvs = document.getElementById('particleCanvas'); const ctx = cvs.getContext('2d');
+    let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
 
     class P {
-        constructor() {
-            this.x = Math.random()*canvas.width; this.y = Math.random()*canvas.height;
-            this.bs = Math.random()*2 + 2; this.s = this.bs;
-            this.c = ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9b59b6'][Math.floor(Math.random()*5)];
-            this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3};
-            this.st = 1; this.a = 0;
-        }
+        constructor() { this.x = Math.random()*cvs.width; this.y = Math.random()*cvs.height; this.bs = Math.random()*2+2; this.s = this.bs; this.c = ['#4285F4','#34A853','#FBBC05','#EA4335','#9b59b6'][Math.floor(Math.random()*5)]; this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3}; this.st = 1; this.a = 0; }
         update() {
-            this.x+=this.v.x; this.y+=this.v.y;
-            if(this.x<0||this.x>canvas.width)this.v.x*=-1;
-            if(this.y<0||this.y>canvas.height)this.v.y*=-1;
+            this.x+=this.v.x; this.y+=this.v.y; if(this.x<0||this.x>cvs.width)this.v.x*=-1; if(this.y<0||this.y>cvs.height)this.v.y*=-1;
             let d = Math.hypot(m.smX-this.x, m.smY-this.y);
-            if(d < 180) {
-                let f = (180-d)/180;
-                this.s = this.bs + f*25;
-                let spd = Math.hypot(m.vx, m.vy);
-                this.st = 1 + (spd * 0.15 * f);
-                this.a = Math.atan2(m.vy, m.vx);
-            } else {
-                this.s += (this.bs-this.s)*0.1;
-                this.st += (1-this.st)*0.1;
-            }
-            this.draw();
-        }
-        draw() {
-            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a);
-            ctx.beginPath(); ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
-            ctx.fillStyle = this.c; ctx.globalAlpha = (currentLvl > 1)? 0.4 : 0.7; ctx.fill(); ctx.restore();
+            if(d < 180) { let f = (180-d)/180; this.s = this.bs + f*25; this.st = 1 + (Math.hypot(m.vx, m.vy) * 0.15 * f); this.a = Math.atan2(m.vy, m.vx); }
+            else { this.s += (this.bs-this.s)*0.1; this.st += (1-this.st)*0.1; }
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a); ctx.beginPath(); ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
+            ctx.fillStyle = this.c; ctx.globalAlpha = (currentLvl>1)?0.3:0.6; ctx.fill(); ctx.restore();
         }
     }
-
-    function updateMouse(x,y) { m.x = x; m.y = y; }
-    function init() {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        particles = Array.from({length: 120}, () => new P());
-    }
+    function init() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; pts = Array.from({length: 120}, () => new P()); }
     function animate() {
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-        let px = m.smX; let py = m.smY;
-        m.smX += (m.x - m.smX) * 0.12; m.smY += (m.y - m.smY) * 0.12;
-        m.vx = m.smX - px; m.vy = m.smY - py;
-        particles.forEach(p => p.update());
-        requestAnimationFrame(animate);
+        ctx.clearRect(0,0,cvs.width, cvs.height);
+        let px = m.smX, py = m.smY; m.smX += (m.x - m.smX)*0.1; m.smY += (m.y - m.smY)*0.1; m.vx = m.smX-px; m.vy = m.smY-py;
+        pts.forEach(p => p.update()); requestAnimationFrame(animate);
     }
     window.onload = () => { init(); animate(); syncFromCloud(); };
     window.onresize = init;
     document.getElementById('dynamicNav').innerHTML = Object.keys(portfolio).map(cat => `<a onclick="showLevel(3, '${cat}')">${cat}</a>`).join('');
-    board.oncontextmenu = (e) => e.preventDefault();
 </script>
 </body>
 </html>
