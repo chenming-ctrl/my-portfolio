@@ -12,6 +12,7 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #fff; font-family: "Helvetica Neue", sans-serif; overflow: hidden; touch-action: none; }
         #canvas-container { position: fixed; width: 100%; height: 100%; z-index: 1; transition: filter 1s ease; filter: blur(var(--bg-blur)); pointer-events: none; }
         
+        /* --- 导航栏 --- */
         nav { position: fixed; top: 0; left: 0; width: 100%; padding: 40px 60px; display: flex; justify-content: space-between; align-items: center; z-index: 5000; box-sizing: border-box; opacity: 0; transform: translateY(-20px); transition: 0.8s ease; pointer-events: none; }
         nav.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .nav-logo { font-size: 0.9rem; font-weight: 600; letter-spacing: 2px; cursor: pointer; color: #000; }
@@ -19,30 +20,35 @@
         .nav-links a { text-decoration: none; color: #999; font-size: 0.6rem; text-transform: uppercase; cursor: pointer; transition: 0.3s; }
         .nav-links a:hover { color: #000; }
 
+        /* --- 左下角 BACK 按钮 --- */
+        .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
+        .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .back-btn { font-size: 0.5rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; transition: 0.3s; border: 1px solid transparent; padding: 10px 0; }
+        .back-btn:hover { color: #000; letter-spacing: 5px; }
+
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
 
-        /* --- 各级层的堆叠特效 --- */
+        /* --- 堆叠与编辑样式 --- */
         .neural-grid { display: flex; gap: 50px; justify-content: center; align-items: center; width: 90%; flex-wrap: wrap; padding: 40px; }
         .stack-container { position: relative; width: 160px; height: 200px; cursor: pointer; text-align: center; perspective: 1000px; }
         .neural-stack { position: relative; width: 130px; height: 130px; transform-style: preserve-3d; margin: 0 auto; transition: 0.5s; }
         .neural-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; border: 1px solid rgba(0,0,0,0.06); overflow: hidden; transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 5px 15px rgba(0,0,0,0.03); }
         .neural-layer img { width: 100%; height: 100%; object-fit: cover; }
         
-        /* 堆叠层级偏移 */
-        .layer-1 { z-index: 5; transform: translateZ(0px); }
+        .layer-1 { z-index: 5; }
         .layer-2 { z-index: 4; transform: translate(8px, -8px); opacity: 0.7; }
         .layer-3 { z-index: 3; transform: translate(16px, -16px); opacity: 0.4; }
 
-        /* 悬停爆炸效果 */
         .stack-container:hover .layer-1 { transform: translate(-20px, -20px) rotate(-5deg); box-shadow: 20px 20px 40px rgba(0,0,0,0.1); }
         .stack-container:hover .layer-2 { transform: translate(10px, 5px) rotate(3deg); opacity: 0.9; }
         .stack-container:hover .layer-3 { transform: translate(25px, 20px) rotate(8deg); opacity: 0.6; }
         
-        .stack-label { margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; }
-        .stack-container:hover .stack-label { color: #000; transform: translateY(5px); }
+        .stack-label { margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; outline: none; border-bottom: 1px solid transparent; display: inline-block; }
+        .stack-container:hover .stack-label { color: #000; }
+        .admin-editable:hover { border-bottom: 1px dotted #999; color: #000; }
 
-        /* --- 第四级 Miro 功能样式 --- */
+        /* --- Miro 画布 --- */
         #lvl4 { background: #fbfbfb; z-index: 6000; cursor: grab; }
         .lvl4-header { position: fixed; top: 100px; left: 60px; z-index: 7000; pointer-events: none; }
         .lvl4-project-title { font-size: 1.8rem; font-weight: 200; letter-spacing: 8px; text-transform: uppercase; color: #000; outline: none; pointer-events: auto; }
@@ -52,17 +58,24 @@
         .miro-item.selected { border-color: #000; }
         .miro-item img { display: block; width: 100%; height: auto; pointer-events: none; }
         .resizer { width: 14px; height: 14px; background: #000; position: absolute; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; border: 2px solid #fff; opacity: 0; }
-        .miro-item.selected .resizer { opacity: 1; }
         
-        .miro-ui { position: fixed; bottom: 30px; left: 30px; z-index: 7000; display: flex; gap: 10px; }
+        .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 7000; display: flex; gap: 10px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .ui-btn:hover { background: #000; color: #fff; border-color: #000; }
-        .admin-lock { position: fixed; bottom: 30px; right: 30px; font-size: 0.4rem; color: #ccc; cursor: pointer; z-index: 7001; text-align: right; letter-spacing: 1px; }
+        .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.4rem; color: #ccc; cursor: pointer; z-index: 7001; text-align: right; letter-spacing: 1px; }
     </style>
 </head>
 <body>
 
-<nav id="mainNav"><div class="nav-logo" onclick="showLevel(1)">CHENMING</div><div id="dynamicNav" class="nav-links"></div></nav>
+<nav id="mainNav">
+    <div class="nav-logo" onclick="showLevel(1)">CHENMING</div>
+    <div id="dynamicNav" class="nav-links"></div>
+</nav>
+
+<div id="backBtnContainer" class="back-btn-container">
+    <div class="back-btn" onclick="handleBack()">← BACK</div>
+</div>
+
 <div id="canvas-container"><canvas id="particleCanvas"></canvas></div>
 
 <div class="view-layer active" id="lvl1">
@@ -82,15 +95,14 @@
     </div>
     <div id="miro-viewport"></div>
     <div class="miro-ui" id="adminControls" style="display:none;">
-        <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ ADD IMAGE</button>
-        <button class="ui-btn" onclick="saveToCloud()">FORCE SAVE</button>
+        <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ IMAGE</button>
+        <button class="ui-btn" onclick="saveToCloud()">SAVE</button>
     </div>
-    <div class="admin-lock" onclick="unlockAdmin()" id="adminInfo">ADMIN LOGIN<br><span style="opacity:0.5">PRESS ESC TO BACK</span></div>
+    <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN<br><span style="opacity:0.5">ESC TO BACK</span></div>
     <input type="file" id="fileInput" hidden accept="image/*" onchange="handleUpload(event)">
 </div>
 
 <script>
-    // --- 1. FIREBASE CONFIG ---
     const firebaseConfig = {
         apiKey: "AIzaSyDIQ48e3qR33xhvwDawYsyzZQpexiHAHNM",
         authDomain: "chenming-portfolio.firebaseapp.com",
@@ -104,51 +116,45 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // --- 2. 五个方向 & 子项目数据结构 ---
     const portfolio = {
-        'Architecture': { thumb: 'arch.jpg', projects: [
-            {id:'a1', title:'Urban Parasite'}, {id:'a2', title:'Flowing Museum'}, {id:'a3', title:'Vertical Forest'}, {id:'a4', title:'Zen Pavillion'}
-        ]},
-        'Computational': { thumb: 'comp.jpg', projects: [
-            {id:'c1', title:'Algorithmic Mesh'}, {id:'c2', title:'Cellular Growth'}, {id:'c3', title:'Bionic Structure'}
-        ]},
-        'Research': { thumb: 'research.jpg', projects: [
-            {id:'r1', title:'Material Agency'}, {id:'r2', title:'Post-Human Urbanism'}, {id:'r3', title:'Carbon Neutrality'}
-        ]},
-        'Interior': { thumb: 'interior.jpg', projects: [
-            {id:'i1', title:'Minimal Loft'}, {id:'i2', title:'Sensory Gallery'}, {id:'i3', title:'Light Space'}
-        ]},
-        'Visuals': { thumb: 'visual.jpg', projects: [
-            {id:'v1', title:'Cyber City'}, {id:'v2', title:'Ethereal Series'}, {id:'v3', title:'Digital Nature'}, {id:'v4', title:'Unreal Engine 5'}
-        ]}
+        'Architecture': { thumb: 'arch.jpg', projects: [{id:'a1', title:'Urban Parasite'}, {id:'a2', title:'Flowing Museum'}, {id:'a3', title:'Vertical Forest'}, {id:'a4', title:'Zen Pavillion'}]},
+        'Computational': { thumb: 'comp.jpg', projects: [{id:'c1', title:'Algorithmic Mesh'}, {id:'c2', title:'Cellular Growth'}, {id:'c3', title:'Bionic Structure'}]},
+        'Research': { thumb: 'research.jpg', projects: [{id:'r1', title:'Material Agency'}, {id:'r2', title:'Post-Human Urbanism'}, {id:'r3', title:'Carbon Neutrality'}]},
+        'Interior': { thumb: 'interior.jpg', projects: [{id:'i1', title:'Minimal Loft'}, {id:'i2', title:'Sensory Gallery'}, {id:'i3', title:'Light Space'}]},
+        'Visuals': { thumb: 'visual.jpg', projects: [{id:'v1', title:'Cyber City'}, {id:'v2', title:'Ethereal Series'}, {id:'v3', title:'Digital Nature'}, {id:'v4', title:'Unreal Engine 5'}]}
     };
 
     let isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
     let dragTarget = null, resizeTarget = null, startX, startY, startW, selectedItem = null;
 
-    // --- 3. 交互控制 ---
-    window.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && document.activeElement !== document.getElementById('lvl4Title')) {
-            if (currentLvl === 4) { if(isAdmin) saveToCloud(); showLevel(3, currentCat); }
-            else if (currentLvl === 3) showLevel(2);
-            else if (currentLvl === 2) showLevel(1);
-        }
-        if (e.key === 'Delete' && currentLvl === 4 && selectedItem && isAdmin) { selectedItem.remove(); selectedItem = null; }
-    });
-
-    function unlockAdmin() {
+    function checkUnlock() {
         if(isAdmin) return;
-        const pass = prompt("Admin Password:");
-        if(pass === "li123") {
-            isAdmin = true;
-            document.getElementById('adminControls').style.display = 'flex';
-            document.getElementById('lvl4Title').contenteditable = true;
-            document.getElementById('adminInfo').innerHTML = "ADMIN: ACTIVE<br><span style='color:#34A853'>AUTO-SAVE ENABLED</span>";
-        }
+        if(prompt("Admin Password:") === "li123") enableAdminMode();
     }
 
-    // --- 4. 云端同步 ---
+    function enableAdminMode() {
+        isAdmin = true;
+        document.getElementById('adminControls').style.display = 'flex';
+        document.getElementById('lvl4Title').contenteditable = true;
+        document.getElementById('adminInfo').innerHTML = "ADMIN: ACTIVE<br><span style='color:#34A853'>AUTO-SAVE ON</span>";
+        if(currentLvl === 3) renderProjGrid();
+    }
+
+    function handleBack() {
+        if (currentLvl === 4) { if(isAdmin) saveToCloud(); showLevel(3, currentCat); }
+        else if (currentLvl === 3) showLevel(2);
+        else if (currentLvl === 2) showLevel(1);
+    }
+
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            if (document.activeElement.classList.contains('stack-label') || document.activeElement.id === 'lvl4Title') {
+                document.activeElement.blur();
+            } else { handleBack(); }
+        }
+    });
+
     async function syncFromCloud() {
         const snapshot = await db.ref('portfolio_data').once('value');
         if(snapshot.exists()) {
@@ -166,13 +172,17 @@
         const items = Array.from(document.querySelectorAll('.miro-item')).map(el => ({
             src: el.querySelector('img').src, x: el.style.left, y: el.style.top, w: el.style.width
         }));
-        await db.ref('portfolio_data/' + currentProj.id).set({
+        await db.ref('portfolio_data/' + currentProj.id).update({
             title: document.getElementById('lvl4Title').innerText,
             layout: items
         });
     }
 
-    // --- 5. 渲染逻辑 (各级堆叠效果) ---
+    async function saveTitleFromL3(projId, newTitle) {
+        if(!isAdmin) return;
+        await db.ref('portfolio_data/' + projId).update({ title: newTitle });
+    }
+
     async function showLevel(lvl, cat = '') {
         await syncFromCloud();
         currentLvl = lvl; if(cat) currentCat = cat;
@@ -186,16 +196,17 @@
             document.getElementById('lvl4CatTag').innerText = currentCat;
             loadBoard(); resetViewport();
         }
+        
         document.getElementById('lvl' + lvl).classList.add('active');
         document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
         document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
+        document.getElementById('backBtnContainer').classList.toggle('show', lvl > 1);
     }
 
     function renderCatGrid() {
         const grid = document.getElementById('catGrid');
         grid.innerHTML = Object.keys(portfolio).map(cat => {
-            const projects = portfolio[cat].projects;
-            const topThumb = projects[0]?.layout?.slice(-1)[0]?.src || null;
+            const topThumb = portfolio[cat].projects[0]?.layout?.slice(-1)[0]?.src || null;
             return `<div class="stack-container" onclick="showLevel(3, '${cat}')">
                 <div class="neural-stack">
                     <div class="neural-layer layer-3"></div>
@@ -212,18 +223,25 @@
         grid.innerHTML = portfolio[currentCat].projects.map(p => {
             const topImg = p.layout?.slice(-1)[0]?.src;
             return `<div class="stack-container" id="sc-${p.id}">
-                <div class="neural-stack">
+                <div class="neural-stack" onclick="enterProject('${p.id}')">
                     <div class="neural-layer layer-3"></div>
                     <div class="neural-layer layer-2"></div>
                     <div class="neural-layer layer-1">${topImg ? `<img src="${topImg}">` : `<div style="padding:40px; color:#eee">⬡</div>`}</div>
                 </div>
-                <div class="stack-label">${p.title}</div>
+                <div class="stack-label ${isAdmin?'admin-editable':''}" 
+                     contenteditable="${isAdmin}" 
+                     onblur="saveTitleFromL3('${p.id}', this.innerText)"
+                     onclick="event.stopPropagation()">${p.title}</div>
             </div>`;
         }).join('');
-        portfolio[currentCat].projects.forEach(p => { document.getElementById(`sc-${p.id}`).onclick = () => { currentProj = p; showLevel(4); }; });
     }
 
-    // --- 6. MIRO 画布引擎 ---
+    function enterProject(id) {
+        currentProj = portfolio[currentCat].projects.find(p => p.id === id);
+        showLevel(4);
+    }
+
+    // Miro Viewport Engine
     const viewport = document.getElementById('miro-viewport');
     const board = document.getElementById('lvl4');
 
@@ -269,7 +287,6 @@
     }
 
     function handleUpload(e) {
-        const file = e.target.files[0]; if(!file) return;
         const reader = new FileReader();
         reader.onload = (ev) => {
             const div = document.createElement('div');
@@ -278,109 +295,68 @@
             div.innerHTML = `<img src="${ev.target.result}"><div class="resizer"></div>`;
             viewport.appendChild(div);
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(e.target.files[0]);
     }
     
     function updateViewport() { viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
     function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
 
-    // --- 7. 背景粒子特效 ---
+    // Particle System
     const canvas = document.getElementById('particleCanvas');
     const ctx = canvas.getContext('2d');
     let particles = [];
-    // m 对象用于记录鼠标位置、平滑位置以及瞬时速度 (vx, vy)
     let m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
-
-    window.addEventListener('mousemove', e => { 
-        m.x = e.clientX; 
-        m.y = e.clientY; 
-    });
+    window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
 
     class P {
         constructor() {
-            this.x = Math.random() * canvas.width; 
-            this.y = Math.random() * canvas.height;
-            // 初始大小：2.0 - 4.0 像素，更有存在感
-            this.bs = Math.random() * 2 + 2; 
-            this.s = this.bs;
-            this.c = ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9b59b6'][Math.floor(Math.random() * 5)];
-            this.v = { x: (Math.random() - 0.5) * 0.3, y: (Math.random() - 0.5) * 0.3 };
-            this.st = 1; // 伸缩倍率
-            this.a = 0;  // 旋转角度
+            this.x = Math.random()*canvas.width; this.y = Math.random()*canvas.height;
+            this.bs = Math.random()*2 + 2; this.s = this.bs;
+            this.c = ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9b59b6'][Math.floor(Math.random()*5)];
+            this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3};
+            this.st = 1; this.a = 0;
         }
         update() {
-            this.x += this.v.x; 
-            this.y += this.v.y;
-            
-            // 边界反弹
-            if(this.x < 0 || this.x > canvas.width) this.v.x *= -1;
-            if(this.y < 0 || this.y > canvas.height) this.v.y *= -1;
-
-            // 计算粒子与平滑鼠标位置的距离
-            let d = Math.hypot(m.smX - this.x, m.smY - this.y);
-            
+            this.x+=this.v.x; this.y+=this.v.y;
+            if(this.x<0||this.x>canvas.width)this.v.x*=-1;
+            if(this.y<0||this.y>canvas.height)this.v.y*=-1;
+            let d = Math.hypot(m.smX-this.x, m.smY-this.y);
             if(d < 180) {
-                let f = (180 - d) / 180;
-                // 鼠标靠近时变大
-                this.s = this.bs + f * 25;
-                // 胶囊拉伸：基于鼠标速度，0.15 是你要求的缩短后的比例
+                let f = (180-d)/180;
+                this.s = this.bs + f*25;
                 let spd = Math.hypot(m.vx, m.vy);
                 this.st = 1 + (spd * 0.15 * f);
-                // 旋转角度：指向鼠标移动的方向
                 this.a = Math.atan2(m.vy, m.vx);
             } else {
-                // 远离鼠标时，平滑恢复初始状态
-                this.s += (this.bs - this.s) * 0.1;
-                this.st += (1 - this.st) * 0.1;
+                this.s += (this.bs-this.s)*0.1;
+                this.st += (1-this.st)*0.1;
             }
             this.draw();
         }
         draw() {
-            ctx.save(); 
-            ctx.translate(this.x, this.y); 
-            ctx.rotate(this.a);
-            ctx.beginPath(); 
-            // 绘制椭圆：s*st 是长度，s 是宽度
-            ctx.ellipse(0, 0, this.s * this.st, this.s, 0, 0, Math.PI * 2);
-            ctx.fillStyle = this.c; 
-            // 在二级、三级菜单时，currentLvl 会让背景变模糊，这里自动调低透明度
-            ctx.globalAlpha = (currentLvl > 1) ? 0.4 : 0.7; 
-            ctx.fill(); 
-            ctx.restore();
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a);
+            ctx.beginPath(); ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
+            ctx.fillStyle = this.c; ctx.globalAlpha = (currentLvl > 1)? 0.4 : 0.7; ctx.fill(); ctx.restore();
         }
     }
 
+    function updateMouse(x,y) { m.x = x; m.y = y; }
     function init() {
-        canvas.width = window.innerWidth; 
-        canvas.height = window.innerHeight;
-        // 增加到 120 个粒子
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
         particles = Array.from({length: 120}, () => new P());
     }
-
     function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // 核心：平滑鼠标移动 (Ease Out)，产生顺滑的追随感
-        let px = m.smX; 
-        let py = m.smY;
-        m.smX += (m.x - m.smX) * 0.12; 
-        m.smY += (m.y - m.smY) * 0.12;
-        
-        // 计算每一帧鼠标滑动的瞬时速度向量
-        m.vx = m.smX - px; 
-        m.vy = m.smY - py;
-
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        let px = m.smX; let py = m.smY;
+        m.smX += (m.x - m.smX) * 0.12; m.smY += (m.y - m.smY) * 0.12;
+        m.vx = m.smX - px; m.vy = m.smY - py;
         particles.forEach(p => p.update());
         requestAnimationFrame(animate);
     }
-
-    init(); 
-    animate();
-    window.addEventListener('resize', init);
-
+    window.onload = () => { init(); animate(); syncFromCloud(); };
+    window.onresize = init;
+    document.getElementById('dynamicNav').innerHTML = Object.keys(portfolio).map(cat => `<a onclick="showLevel(3, '${cat}')">${cat}</a>`).join('');
+    board.oncontextmenu = (e) => e.preventDefault();
 </script>
 </body>
 </html>
-
-
-
