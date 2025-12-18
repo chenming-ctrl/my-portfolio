@@ -109,16 +109,16 @@
         'Architecture': { thumb: 'arch.jpg', projects: [
             {id:'a1', title:'Urban Parasite'}, {id:'a2', title:'Flowing Museum'}, {id:'a3', title:'Vertical Forest'}, {id:'a4', title:'Zen Pavillion'}
         ]},
-        'Photo': { thumb: 'Photo.jpg', projects: [
+        'Computational': { thumb: 'comp.jpg', projects: [
             {id:'c1', title:'Algorithmic Mesh'}, {id:'c2', title:'Cellular Growth'}, {id:'c3', title:'Bionic Structure'}
         ]},
-        'Research': { thumb: 'Research.jpg', projects: [
+        'Research': { thumb: 'research.jpg', projects: [
             {id:'r1', title:'Material Agency'}, {id:'r2', title:'Post-Human Urbanism'}, {id:'r3', title:'Carbon Neutrality'}
         ]},
-        'Interest': { thumb: 'Interest.jpg', projects: [
+        'Interior': { thumb: 'interior.jpg', projects: [
             {id:'i1', title:'Minimal Loft'}, {id:'i2', title:'Sensory Gallery'}, {id:'i3', title:'Light Space'}
         ]},
-        'Ongoing': { thumb: 'Ongoing.jpg', projects: [
+        'Visuals': { thumb: 'visual.jpg', projects: [
             {id:'v1', title:'Cyber City'}, {id:'v2', title:'Ethereal Series'}, {id:'v3', title:'Digital Nature'}, {id:'v4', title:'Unreal Engine 5'}
         ]}
     };
@@ -283,79 +283,49 @@
     
     function updateViewport() { viewport.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
     function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
-    
-    // --- 7. 背景粒子特效 (优化版：数量更多，初始更大) ---
-const canvas = document.getElementById('particleCanvas');
-const ctx = canvas.getContext('2d');
-let particles = [], mouse = { x: -1000, y: -1000, targetX: -1000, targetY: -1000, vx: 0, vy: 0 };
-const updateMouse = (x, y) => { mouse.targetX = x; mouse.targetY = y; };
 
-class Particle {
-    constructor() { 
-        this.x = Math.random() * canvas.width; 
-        this.y = Math.random() * canvas.height; 
-        // 1. 初始点点变大：从 baseSize 开始就更具存在感
-        this.baseSize = Math.random() * 2 + 2; 
-        this.size = this.baseSize; 
-        this.color = ['#4285F4', '#34A853', '#FBBC05', '#EA4335'][Math.floor(Math.random() * 4)]; 
-        this.v = {x: (Math.random() - 0.5) * 0.25, y: (Math.random() - 0.5) * 0.25};
-        this.angle = 0; 
-        this.stretch = 1; 
-    }
-    update() {
-        this.x += this.v.x; 
-        this.y += this.v.y;
-        
-        // 边界处理
-        if(this.x < 0 || this.x > canvas.width) this.v.x *= -1; 
-        if(this.y < 0 || this.y > canvas.height) this.v.y *= -1;
+    // --- 7. 背景粒子特效 ---
+    const canvas = document.getElementById('particleCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [], mouse = { x: -1000, y: -1000, targetX: -1000, targetY: -1000, vx: 0, vy: 0 };
+    const updateMouse = (x, y) => { mouse.targetX = x; mouse.targetY = y; };
 
-        let dx = mouse.x - this.x, dy = mouse.y - this.y, d = Math.sqrt(dx*dx + dy*dy);
-        
-        if(d < 180) { // 稍微扩大了交互影响范围
-            let f = (180 - d) / 180;
-            // 鼠标靠近时进一步放大并拉伸
-            this.size = this.baseSize + f * 30; 
-            this.stretch = 1 + (Math.hypot(mouse.vx, mouse.vy) * 0.5 * f);
-            this.angle = Math.atan2(mouse.vy, mouse.vx);
-        } else { 
-            this.size += (this.baseSize - this.size) * 0.08; 
-            this.stretch += (1 - this.stretch) * 0.08; 
+    class Particle {
+        constructor() { 
+            this.x = Math.random()*canvas.width; this.y = Math.random()*canvas.height; 
+            this.baseSize = Math.random()*2 + 2; this.size = this.baseSize; 
+            this.color = ['#4285F4', '#34A853', '#FBBC05', '#EA4335'][Math.floor(Math.random()*4)]; 
+            this.v = {x:(Math.random()-0.5)*0.25, y:(Math.random()-0.5)*0.25};
+            this.angle = 0; this.stretch = 1; 
         }
-
-        ctx.save(); 
-        ctx.translate(this.x, this.y); 
-        ctx.rotate(this.angle);
-        ctx.beginPath(); 
-        // 使用 ellipse 实现胶囊拉伸效果
-        ctx.ellipse(0, 0, this.size * this.stretch, this.size, 0, 0, Math.PI * 2);
-        ctx.fillStyle = this.color; 
-        ctx.globalAlpha = 0.45; // 略微降低透明度，让 120 个点叠加时不刺眼
-        ctx.fill(); 
-        ctx.restore();
+        update() {
+            this.x += this.v.x; this.y += this.v.y;
+            if(this.x<0||this.x>canvas.width) this.v.x*=-1; if(this.y<0||this.y>canvas.height) this.v.y*=-1;
+            let dx = mouse.x - this.x, dy = mouse.y - this.y, d = Math.sqrt(dx*dx+dy*dy);
+            if(d < 180) {
+                let f = (180-d)/180;
+                this.size = this.baseSize + f * 30;
+                this.stretch = 1 + (Math.hypot(mouse.vx, mouse.vy) * 0.5 * f);
+                this.angle = Math.atan2(mouse.vy, mouse.vx);
+            } else { this.size += (this.baseSize - this.size) * 0.1; this.stretch += (1 - this.stretch) * 0.1; }
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+            ctx.beginPath(); ctx.ellipse(0, 0, this.size * this.stretch, this.size, 0, 0, Math.PI*2);
+            ctx.fillStyle = this.color; ctx.globalAlpha = 0.45; ctx.fill(); ctx.restore();
+        }
     }
-}
-
-function init() { 
-    canvas.width = window.innerWidth; 
-    canvas.height = window.innerHeight; 
-    // 2. 点点数量翻倍：从 50 增加到 120
-    particles = Array.from({length: 120}, () => new Particle()); 
-}
-
-function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    let oldX = mouse.x, oldY = mouse.y;
-    mouse.x += (mouse.targetX - mouse.x) * 0.12; 
-    mouse.y += (mouse.targetY - mouse.y) * 0.12;
-    mouse.vx = mouse.x - oldX; 
-    mouse.vy = mouse.y - oldY;
-    particles.forEach(p => p.update());
-    requestAnimationFrame(animate);
-}
-
+    function init() { canvas.width=window.innerWidth; canvas.height=window.innerHeight; particles=Array.from({length:120},()=>new Particle()); }
+    function animate() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        let oldX = mouse.x, oldY = mouse.y;
+        mouse.x += (mouse.targetX - mouse.x) * 0.12; mouse.y += (mouse.targetY - mouse.y) * 0.12;
+        mouse.vx = mouse.x - oldX; mouse.vy = mouse.y - oldY;
+        particles.forEach(p => p.update());
+        requestAnimationFrame(animate);
+    }
+    window.onload = () => { init(); animate(); syncFromCloud(); };
+    window.onresize = init;
+    document.getElementById('dynamicNav').innerHTML = Object.keys(portfolio).map(cat => `<a onclick="showLevel(3, '${cat}')">${cat}</a>`).join('');
+    board.oncontextmenu = (e) => e.preventDefault();
 </script>
 </body>
-
 </html>
-
