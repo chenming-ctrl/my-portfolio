@@ -287,46 +287,60 @@
     // --- 7. 背景粒子特效 ---
     const canvas = document.getElementById('particleCanvas');
     const ctx = canvas.getContext('2d');
-    let particles = [], mouse = { x: -1000, y: -1000, targetX: -1000, targetY: -1000, vx: 0, vy: 0 };
-    const updateMouse = (x, y) => { mouse.targetX = x; mouse.targetY = y; };
+    let particles = [], isBlurred = false;
+    let m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
+    window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
 
-    class Particle {
-        constructor() { 
-            this.x = Math.random()*canvas.width; this.y = Math.random()*canvas.height; 
-            this.baseSize = Math.random()*2 + 2; this.size = this.baseSize; 
-            this.color = ['#4285F4', '#34A853', '#FBBC05', '#EA4335'][Math.floor(Math.random()*4)]; 
-            this.v = {x:(Math.random()-0.5)*0.25, y:(Math.random()-0.5)*0.25};
-            this.angle = 0; this.stretch = 1; 
+    class P {
+        constructor() {
+            this.x = Math.random()*canvas.width; this.y = Math.random()*canvas.height;
+            this.bs = Math.random()*1.5 + 1; this.s = this.bs;
+            this.c = ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9b59b6'][Math.floor(Math.random()*5)];
+            this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3};
+            this.st = 1; this.a = 0;
         }
         update() {
-            this.x += this.v.x; this.y += this.v.y;
-            if(this.x<0||this.x>canvas.width) this.v.x*=-1; if(this.y<0||this.y>canvas.height) this.v.y*=-1;
-            let dx = mouse.x - this.x, dy = mouse.y - this.y, d = Math.sqrt(dx*dx+dy*dy);
-            if(d < 180) {
-                let f = (180-d)/180;
-                this.size = this.baseSize + f * 30;
-                this.stretch = 1 + (Math.hypot(mouse.vx, mouse.vy) * 0.15 * f);
-                this.angle = Math.atan2(mouse.vy, mouse.vx);
-            } else { this.size += (this.baseSize - this.size) * 0.15; this.stretch += (1 - this.stretch) * 0.15; }
-            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
-            ctx.beginPath(); ctx.ellipse(0, 0, this.size * this.stretch, this.size, 0, 0, Math.PI*2);
-            ctx.fillStyle = this.color; ctx.globalAlpha = 0.45; ctx.fill(); ctx.restore();
+            this.x+=this.v.x; this.y+=this.v.y;
+            if(this.x<0||this.x>canvas.width)this.v.x*=-1;
+            if(this.y<0||this.y>canvas.height)this.v.y*=-1;
+            let d = Math.hypot(m.smX-this.x, m.smY-this.y);
+            if(d < 150) {
+                let f = (150-d)/150;
+                this.s = this.bs + f*20;
+                let spd = Math.hypot(m.vx, m.vy);
+                this.st = 1 + (spd * 0.15);
+                this.a = Math.atan2(m.vy, m.vx);
+            } else {
+                this.s += (this.bs-this.s)*0.1;
+                this.st += (1-this.st)*0.1;
+            }
+            this.draw();
+        }
+        draw() {
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a);
+            ctx.beginPath(); ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
+            ctx.fillStyle = this.c; ctx.globalAlpha = isBlurred?0.4:0.8; ctx.fill(); ctx.restore();
         }
     }
-    function init() { canvas.width=window.innerWidth; canvas.height=window.innerHeight; particles=Array.from({length:120},()=>new Particle()); }
+
+    function init() {
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        particles = Array.from({length: 120}, () => new P());
+        initNav();
+    }
     function animate() {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        let oldX = mouse.x, oldY = mouse.y;
-        mouse.x += (mouse.targetX - mouse.x) * 0.12; mouse.y += (mouse.targetY - mouse.y) * 0.12;
-        mouse.vx = mouse.x - oldX; mouse.vy = mouse.y - oldY;
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        let px = m.smX; let py = m.smY;
+        m.smX += (m.x - m.smX) * 0.1; m.smY += (m.y - m.smY) * 0.1;
+        m.vx = m.smX - px; m.vy = m.smY - py;
         particles.forEach(p => p.update());
         requestAnimationFrame(animate);
     }
-    window.onload = () => { init(); animate(); syncFromCloud(); };
-    window.onresize = init;
-    document.getElementById('dynamicNav').innerHTML = Object.keys(portfolio).map(cat => `<a onclick="showLevel(3, '${cat}')">${cat}</a>`).join('');
-    board.oncontextmenu = (e) => e.preventDefault();
+    init(); animate();
+    window.addEventListener('resize', init);
+
 </script>
 </body>
 </html>
+
 
