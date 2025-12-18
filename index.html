@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chenming LI | Design Portfolio</title>
+    <style>
+        :root { --bg-blur: 0px; }
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 顶部导航 */
+        nav {
+            position: fixed; top: 0; left: 0; width: 100%;
+            padding: 40px 60px; display: flex;
+            justify-content: space-between; align-items: center;
+            z-index: 100; box-sizing: border-box;
+            opacity: 0; transform: translateY(-20px);
+            transition: all 0.8s cubic-bezier(0.165, 0.84, 0.44, 1);
+            pointer-events: none;
+        }
+        nav.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .nav-logo { font-size: 0.9rem; font-weight: 600; letter-spacing: 2px; cursor: pointer; }
+        .nav-links { display: flex; gap: 30px; }
+        .nav-links a { 
+            text-decoration: none; color: #999; font-size: 0.7rem; 
+            text-transform: uppercase; letter-spacing: 1.5px; transition: 0.3s;
+            cursor: pointer;
+        }
+        .nav-links a:hover { color: #000; }
+
+        /* 画布 */
+        #canvas-container {
+            position: absolute; width: 100%; height: 100%;
+            z-index: 1; transition: filter 1.2s ease;
+            filter: blur(var(--bg-blur));
+        }
+
+        /* 第一级：首页 */
+        .hero-text {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); z-index: 2;
+            text-align: center; transition: all 0.8s ease;
+        }
+        .hero-text h1 { font-size: 3rem; font-weight: 200; letter-spacing: 6px; text-transform: uppercase; }
+        .hero-text p { font-size: 0.75rem; color: #aaa; margin-top: 20px; letter-spacing: 4px; cursor: pointer; }
+
+        /* 第二级：分类网格 */
+        #portfolio-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; transition: 0.8s ease;
+        }
+        #portfolio-overlay.active { opacity: 1; visibility: visible; }
+        .project-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 30px; max-width: 1100px; }
+        .project-item { text-decoration: none; color: #1a1a1a; text-align: center; cursor: pointer; }
+        .img-wrap { width: 140px; height: 140px; overflow: hidden; margin-bottom: 15px; transition: 0.6s; }
+        .project-item:hover .img-wrap { transform: translateY(-8px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        .img-wrap img { width: 100%; height: 100%; object-fit: cover; transition: 0.8s; }
+        .project-title { font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; color: #999; }
+
+        /* 第三级：内容详情页 */
+        #detail-view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 20; background: white;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; transition: 0.6s ease;
+        }
+        #detail-view.active { opacity: 1; visibility: visible; }
+        .detail-content { text-align: center; max-width: 600px; }
+        .detail-content h2 { font-weight: 300; letter-spacing: 5px; text-transform: uppercase; }
+
+        /* 通用按钮 */
+        .back-btn { position: absolute; bottom: 60px; cursor: pointer; font-size: 0.6rem; letter-spacing: 3px; color: #ccc; text-transform: uppercase; z-index: 30; }
+        .hidden { opacity: 0; transform: translate(-50%, -55%); pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<nav id="mainNav">
+    <div class="nav-logo" onclick="toLevel1()">CHENMING</div>
+    <div class="nav-links">
+        <a onclick="showDetail('Architecture')">Architecture</a>
+        <a onclick="showDetail('Research')">Research</a>
+        <a onclick="showDetail('Photography')">Photography</a>
+        <a onclick="showDetail('Interests')">Interests</a>
+        <a onclick="showDetail('Ongoing')">Ongoing</a>
+    </div>
+</nav>
+
+<div id="canvas-container"><canvas id="particleCanvas"></canvas></div>
+
+<div class="hero-text" id="heroText">
+    <h1>CHENMING LI</h1>
+    <p onclick="toLevel2()">Website of ChenMing Design</p>
+</div>
+
+<div id="portfolio-overlay">
+    <div class="project-grid">
+        <div class="project-item" onclick="showDetail('Architecture')">
+            <div class="img-wrap"><img src="https://images.unsplash.com/photo-1511818966892-d7d671e672a2?q=80&w=400&h=400&fit=crop" alt="Arch"></div>
+            <div class="project-title">Architecture</div>
+        </div>
+        <div class="project-item" onclick="showDetail('Research')">
+            <div class="img-wrap"><img src="https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?q=80&w=400&h=400&fit=crop" alt="Res"></div>
+            <div class="project-title">Research</div>
+        </div>
+        <div class="project-item" onclick="showDetail('Photography')">
+            <div class="img-wrap"><img src="https://images.unsplash.com/photo-1500462859194-889d6100bccd?q=80&w=400&h=400&fit=crop" alt="Photo"></div>
+            <div class="project-title">Photography</div>
+        </div>
+        <div class="project-item" onclick="showDetail('Interests')">
+            <div class="img-wrap"><img src="https://images.unsplash.com/photo-1518005020250-68a0d0d7575a?q=80&w=400&h=400&fit=crop" alt="Int"></div>
+            <div class="project-title">Interests</div>
+        </div>
+        <div class="project-item" onclick="showDetail('Ongoing')">
+            <div class="img-wrap"><img src="https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?q=80&w=400&h=400&fit=crop" alt="Ong"></div>
+            <div class="project-title">Ongoing</div>
+        </div>
+    </div>
+    <div class="back-btn" onclick="toLevel1()">[ Back ]</div>
+</div>
+
+<div id="detail-view">
+    <div class="detail-content">
+        <h2 id="detail-title">Project Title</h2>
+        <p style="color: #999; font-size: 0.8rem; line-height: 2;">Project details and gallery content will be placed here.</p>
+    </div>
+    <div class="back-btn" onclick="toLevel2()">[ Back to Selection ]</div>
+</div>
+
+<script>
+    const canvas = document.getElementById('particleCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let isBlurred = false;
+    const mouse = { x: null, y: null, radius: 150 };
+    const colors = ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9b59b6'];
+
+    // --- 导航逻辑 ---
+    function toLevel1() {
+        document.getElementById('heroText').classList.remove('hidden');
+        document.getElementById('portfolio-overlay').classList.remove('active');
+        document.getElementById('detail-view').classList.remove('active');
+        document.getElementById('mainNav').classList.remove('visible');
+        document.documentElement.style.setProperty('--bg-blur', '0px');
+        isBlurred = false;
+    }
+
+    function toLevel2() {
+        document.getElementById('heroText').classList.add('hidden');
+        document.getElementById('portfolio-overlay').classList.add('active');
+        document.getElementById('detail-view').classList.remove('active');
+        document.getElementById('mainNav').classList.add('visible');
+        document.documentElement.style.setProperty('--bg-blur', '25px');
+        isBlurred = true;
+    }
+
+    function showDetail(title) {
+        document.getElementById('detail-title').innerText = title;
+        document.getElementById('portfolio-overlay').classList.remove('active');
+        document.getElementById('detail-view').classList.add('active');
+        document.documentElement.style.setProperty('--bg-blur', '50px'); // 更深层的模糊
+    }
+
+    // --- 粒子逻辑 ---
+    window.addEventListener('mousemove', (e) => { mouse.x = e.x; mouse.y = e.y; });
+
+    function init() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        particles = [];
+        const num = (canvas.width * canvas.height) / 5000;
+        for (let i = 0; i < num; i++) particles.push(new Particle());
+    }
+
+    class Particle {
+        constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.baseSize = Math.random() * 1.5 + 1;
+            this.size = this.baseSize;
+            this.color = colors[Math.floor(Math.random() * colors.length)];
+            this.vx = (Math.random() - 0.5) * 0.4;
+            this.vy = (Math.random() - 0.5) * 0.4;
+        }
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            // 无论在哪一级，都保持彩色，只是透明度随模糊微调
+            ctx.fillStyle = this.color; 
+            ctx.globalAlpha = isBlurred ? 0.6 : 1;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+        update() {
+            this.x += this.vx; this.vy += this.vy;
+            if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+            if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            let dx = mouse.x - this.x;
+            let dy = mouse.y - this.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < mouse.radius) {
+                let f = (mouse.radius - dist) / mouse.radius;
+                this.size = this.baseSize + (f * 30);
+            } else {
+                if (this.size > this.baseSize) this.size -= 0.3;
+            }
+            this.draw();
+        }
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => p.update());
+        requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', init);
+    init(); animate();
+</script>
+</body>
+</html>
