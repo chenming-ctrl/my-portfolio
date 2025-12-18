@@ -287,60 +287,100 @@
     // --- 7. 背景粒子特效 ---
     const canvas = document.getElementById('particleCanvas');
     const ctx = canvas.getContext('2d');
-    let particles = [], isBlurred = false;
+    let particles = [];
+    // m 对象用于记录鼠标位置、平滑位置以及瞬时速度 (vx, vy)
     let m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
-    window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
+
+    window.addEventListener('mousemove', e => { 
+        m.x = e.clientX; 
+        m.y = e.clientY; 
+    });
 
     class P {
         constructor() {
-            this.x = Math.random()*canvas.width; this.y = Math.random()*canvas.height;
-            this.bs = Math.random()*1.5 + 1; this.s = this.bs;
-            this.c = ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9b59b6'][Math.floor(Math.random()*5)];
-            this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3};
-            this.st = 1; this.a = 0;
+            this.x = Math.random() * canvas.width; 
+            this.y = Math.random() * canvas.height;
+            // 初始大小：2.0 - 4.0 像素，更有存在感
+            this.bs = Math.random() * 2 + 2; 
+            this.s = this.bs;
+            this.c = ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9b59b6'][Math.floor(Math.random() * 5)];
+            this.v = { x: (Math.random() - 0.5) * 0.3, y: (Math.random() - 0.5) * 0.3 };
+            this.st = 1; // 伸缩倍率
+            this.a = 0;  // 旋转角度
         }
         update() {
-            this.x+=this.v.x; this.y+=this.v.y;
-            if(this.x<0||this.x>canvas.width)this.v.x*=-1;
-            if(this.y<0||this.y>canvas.height)this.v.y*=-1;
-            let d = Math.hypot(m.smX-this.x, m.smY-this.y);
-            if(d < 150) {
-                let f = (150-d)/150;
-                this.s = this.bs + f*20;
+            this.x += this.v.x; 
+            this.y += this.v.y;
+            
+            // 边界反弹
+            if(this.x < 0 || this.x > canvas.width) this.v.x *= -1;
+            if(this.y < 0 || this.y > canvas.height) this.v.y *= -1;
+
+            // 计算粒子与平滑鼠标位置的距离
+            let d = Math.hypot(m.smX - this.x, m.smY - this.y);
+            
+            if(d < 180) {
+                let f = (180 - d) / 180;
+                // 鼠标靠近时变大
+                this.s = this.bs + f * 25;
+                // 胶囊拉伸：基于鼠标速度，0.15 是你要求的缩短后的比例
                 let spd = Math.hypot(m.vx, m.vy);
-                this.st = 1 + (spd * 0.15);
+                this.st = 1 + (spd * 0.15 * f);
+                // 旋转角度：指向鼠标移动的方向
                 this.a = Math.atan2(m.vy, m.vx);
             } else {
-                this.s += (this.bs-this.s)*0.1;
-                this.st += (1-this.st)*0.1;
+                // 远离鼠标时，平滑恢复初始状态
+                this.s += (this.bs - this.s) * 0.1;
+                this.st += (1 - this.st) * 0.1;
             }
             this.draw();
         }
         draw() {
-            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a);
-            ctx.beginPath(); ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
-            ctx.fillStyle = this.c; ctx.globalAlpha = isBlurred?0.4:0.8; ctx.fill(); ctx.restore();
+            ctx.save(); 
+            ctx.translate(this.x, this.y); 
+            ctx.rotate(this.a);
+            ctx.beginPath(); 
+            // 绘制椭圆：s*st 是长度，s 是宽度
+            ctx.ellipse(0, 0, this.s * this.st, this.s, 0, 0, Math.PI * 2);
+            ctx.fillStyle = this.c; 
+            // 在二级、三级菜单时，currentLvl 会让背景变模糊，这里自动调低透明度
+            ctx.globalAlpha = (currentLvl > 1) ? 0.4 : 0.7; 
+            ctx.fill(); 
+            ctx.restore();
         }
     }
 
     function init() {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        canvas.width = window.innerWidth; 
+        canvas.height = window.innerHeight;
+        // 增加到 120 个粒子
         particles = Array.from({length: 120}, () => new P());
-        initNav();
     }
+
     function animate() {
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-        let px = m.smX; let py = m.smY;
-        m.smX += (m.x - m.smX) * 0.1; m.smY += (m.y - m.smY) * 0.1;
-        m.vx = m.smX - px; m.vy = m.smY - py;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 核心：平滑鼠标移动 (Ease Out)，产生顺滑的追随感
+        let px = m.smX; 
+        let py = m.smY;
+        m.smX += (m.x - m.smX) * 0.12; 
+        m.smY += (m.y - m.smY) * 0.12;
+        
+        // 计算每一帧鼠标滑动的瞬时速度向量
+        m.vx = m.smX - px; 
+        m.vy = m.smY - py;
+
         particles.forEach(p => p.update());
         requestAnimationFrame(animate);
     }
-    init(); animate();
+
+    init(); 
+    animate();
     window.addEventListener('resize', init);
 
 </script>
 </body>
 </html>
+
 
 
