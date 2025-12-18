@@ -305,9 +305,9 @@
             if(d < 180) {
                 let f = (180-d)/180;
                 this.size = this.baseSize + f * 30;
-                this.stretch = 1 + (Math.hypot(mouse.vx, mouse.vy) * 0.5 * f);
+                this.stretch = 1 + (Math.hypot(mouse.vx, mouse.vy) * 0.15 * f);
                 this.angle = Math.atan2(mouse.vy, mouse.vx);
-            } else { this.size += (this.baseSize - this.size) * 0.1; this.stretch += (1 - this.stretch) * 0.1; }
+            } else { this.size += (this.baseSize - this.size) * 0.15; this.stretch += (1 - this.stretch) * 0.15; }
             ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
             ctx.beginPath(); ctx.ellipse(0, 0, this.size * this.stretch, this.size, 0, 0, Math.PI*2);
             ctx.fillStyle = this.color; ctx.globalAlpha = 0.45; ctx.fill(); ctx.restore();
@@ -329,3 +329,4 @@
 </script>
 </body>
 </html>
+
