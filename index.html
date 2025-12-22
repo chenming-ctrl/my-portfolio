@@ -29,7 +29,7 @@
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
 
-        /* --- 首页文字样式 (强制保留原始大小) --- */
+        /* --- 首页文字样式 --- */
         #lvl1 h1 { font-size: 3.5rem; font-weight: 100; letter-spacing: 20px; margin-bottom: 20px; text-transform: uppercase; }
         #lvl1 p { font-size: 0.55rem; color: #aaa; letter-spacing: 8px; text-transform: uppercase; }
 
@@ -37,7 +37,6 @@
         .neural-grid { display: flex; gap: 50px; justify-content: center; align-items: center; width: 95%; flex-wrap: wrap; padding: 20px; }
         .stack-container { position: relative; width: 160px; height: 200px; cursor: pointer; text-align: center; perspective: 1000px; }
         
-        /* 占位符样式 */
         .placeholder-box { width: 100%; height: 100%; background: #f5f5f5; display: flex; align-items: center; justify-content: center; color: #ddd; font-size: 1.5rem; }
 
         .neural-stack { position: relative; width: 130px; height: 130px; transform-style: preserve-3d; margin: 0 auto; transition: 0.5s; }
@@ -49,10 +48,9 @@
 
         .stack-container:hover .layer-1 { transform: translate(-20px, -20px) rotate(-5deg); box-shadow: 20px 20px 40px rgba(0,0,0,0.1); }
         
-        /* 标题文字阻尼动画与变色 */
         .stack-label { 
             margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; 
-            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); /* 阻尼感曲线 */
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); 
             outline: none; border-bottom: 1px solid transparent; display: inline-block;
         }
         .stack-container:hover .stack-label { color: #000; transform: translateY(5px); letter-spacing: 4px; }
@@ -64,7 +62,7 @@
         .lvl4-project-title { font-size: 1.8rem; font-weight: 200; letter-spacing: 8px; text-transform: uppercase; color: #000; outline: none; pointer-events: auto; }
         
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
-        .miro-item { position: absolute; background: white; padding: 5px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 2px solid transparent; }
+        .miro-item { position: absolute; background: white; padding: 5px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 2px solid transparent; transition: border-color 0.2s; }
         .miro-item.selected { border-color: #000; }
         .miro-item img { display: block; width: 100%; height: auto; pointer-events: none; }
         .resizer { width: 14px; height: 14px; background: #000; position: absolute; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; border: 2px solid #fff; opacity: 0; }
@@ -75,7 +73,6 @@
         .ui-btn:hover { background: #000; color: #fff; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.4rem; color: #ccc; cursor: pointer; z-index: 7001; text-align: right; letter-spacing: 1px; }
 
-        /* 移动端细微调整：仅调整布局，不改字体大小 */
         @media (max-width: 768px) {
             nav { padding: 30px 40px; }
             .back-btn-container { left: 40px; }
@@ -223,21 +220,21 @@
 
     function enterProject(id) { currentProj = portfolio[currentCat].projects.find(p => p.id === id); showLevel(4); }
 
-    // --- 4. MIRO 引擎 ---//
+    // --- 4. MIRO 引擎 (增加键盘删除支持) ---
     const vp = document.getElementById('miro-viewport');
     const bd = document.getElementById('lvl4');
 
-    // 监听键盘删除事件
+    // 监听全局按键
     window.addEventListener('keydown', (e) => {
         if (currentLvl === 4 && (e.key === 'Delete' || e.key === 'Backspace')) {
-            // 如果是在编辑标题，则不触发删除图片
+            // 如果用户正在编辑项目标题，不触发图片删除
             if (document.activeElement.id === 'lvl4Title') return;
             
             if (selectedItem && isAdmin) {
-                if (confirm('Delete this item?')) {
+                if (confirm('Delete selected image?')) {
                     selectedItem.remove();
                     selectedItem = null;
-                    saveToCloud(); // 删除后自动同步到云端
+                    saveToCloud(); // 立即同步
                 }
             }
         }
@@ -250,27 +247,16 @@
         if(currentLvl !== 4) return;
         const item = target.closest('.miro-item');
         
-        // 清除旧的选择状态
         if(selectedItem) selectedItem.classList.remove('selected');
         
         if(item) {
             selectedItem = item; 
             item.classList.add('selected'); 
-            vp.appendChild(item); // 置顶显示
-            
-            if(target.classList.contains('resizer')) { 
-                isResizing = true; 
-                startX = x; 
-                startW = item.offsetWidth; 
-            } else { 
-                isDragging = true; 
-                dragTarget = item; 
-                startX = (x/zoom)-item.offsetLeft; 
-                startY = (y/zoom)-item.offsetTop; 
-            }
+            vp.appendChild(item); // 选中的图层移到最前
+            if(target.classList.contains('resizer')) { isResizing = true; startX = x; startW = item.offsetWidth; }
+            else { isDragging = true; dragTarget = item; startX = (x/zoom)-item.offsetLeft; startY = (y/zoom)-item.offsetTop; }
         } else { 
-            // 点击空白处，取消选中
-            selectedItem = null;
+            selectedItem = null; // 点击空白取消选中
             isPanning = true; 
             startX = x - panX; 
             startY = y - panY; 
@@ -286,8 +272,29 @@
         else if(isDragging && dragTarget) { dragTarget.style.left = (x/zoom-startX)+'px'; dragTarget.style.top = (y/zoom-startY)+'px'; }
     }
     window.onmouseup = window.ontouchend = () => isPanning = isDragging = isResizing = false;
-    
-    // --- 5. 粒子系统 (优化版) ---
+    bd.addEventListener('wheel', e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; zoom = Math.min(Math.max(zoom * d, 0.1), 5); updateViewport(); }, {passive:false});
+    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
+    function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
+
+    function loadBoard() {
+        vp.innerHTML = '';
+        (currentProj.layout || []).forEach(it => {
+            const d = document.createElement('div'); d.className = 'miro-item'; d.style.left = it.x; d.style.top = it.y; d.style.width = it.w;
+            d.innerHTML = `<img src="${it.src}"><div class="resizer"></div>`; vp.appendChild(d);
+        });
+    }
+
+    function handleUpload(event) {
+        const file = event.target.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const div = document.createElement('div'); div.className = 'miro-item'; div.style.width = '300px';
+            div.style.left = (window.innerWidth/2-panX)/zoom+'px'; div.style.top = (window.innerHeight/2-panY)/zoom+'px';
+            div.innerHTML = `<img src="${e.target.result}"><div class="resizer"></div>`; vp.appendChild(div);
+        }; reader.readAsDataURL(file);
+    }
+
+    // --- 5. 粒子系统 ---
     const cvs = document.getElementById('particleCanvas'); const ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
@@ -315,5 +322,3 @@
 </script>
 </body>
 </html>
-
-
