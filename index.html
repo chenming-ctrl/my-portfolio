@@ -36,36 +36,27 @@
         /* --- 堆叠网格与标题阻尼动画 --- */
         .neural-grid { display: flex; gap: 50px; justify-content: center; align-items: center; width: 95%; flex-wrap: wrap; padding: 20px; }
         .stack-container { position: relative; width: 160px; height: 200px; cursor: pointer; text-align: center; perspective: 1000px; }
-        
         .placeholder-box { width: 100%; height: 100%; background: #f5f5f5; display: flex; align-items: center; justify-content: center; color: #ddd; font-size: 1.5rem; }
-
         .neural-stack { position: relative; width: 130px; height: 130px; transform-style: preserve-3d; margin: 0 auto; transition: 0.5s; }
         .neural-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; border: 1px solid rgba(0,0,0,0.06); overflow: hidden; transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 5px 15px rgba(0,0,0,0.03); }
-        .neural-layer img { width: 100%; height: 100%; object-fit: cover; }
-        
+        .neural-layer img, .neural-layer video { width: 100%; height: 100%; object-fit: cover; }
         .layer-1 { z-index: 5; }
         .layer-2 { z-index: 4; transform: translate(8px, -8px); opacity: 0.7; }
-
         .stack-container:hover .layer-1 { transform: translate(-20px, -20px) rotate(-5deg); box-shadow: 20px 20px 40px rgba(0,0,0,0.1); }
-        
-        .stack-label { 
-            margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; 
-            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); 
-            outline: none; border-bottom: 1px solid transparent; display: inline-block;
-        }
+        .stack-label { margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); outline: none; border-bottom: 1px solid transparent; display: inline-block; }
         .stack-container:hover .stack-label { color: #000; transform: translateY(5px); letter-spacing: 4px; }
         .admin-editable:hover { border-bottom: 1px dotted #ccc; }
 
         /* --- Miro 画布 --- */
-        #lvl4 { background: #fbfbfb; z-index: 6000; }
+        #lvl4 { background: #fbfbfb; z-index: 6000; outline: none; }
         .lvl4-header { position: fixed; top: 100px; left: 60px; z-index: 7000; pointer-events: none; }
-        .lvl4-project-title { font-size: 1.8rem; font-weight: 200; letter-spacing: 8px; text-transform: uppercase; color: #000; outline: none; pointer-events: auto; }
-        
+        .lvl4-project-title { font-size: 1.8rem; font-weight: 200; letter-spacing: 8px; text-transform: uppercase; color: #000; outline: none; pointer-events: auto; min-width: 100px; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
-        .miro-item { position: absolute; background: white; padding: 5px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 2px solid transparent; transition: border-color 0.2s; }
+        .miro-item { position: absolute; background: white; padding: 5px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 2px solid transparent; }
         .miro-item.selected { border-color: #000; }
-        .miro-item img { display: block; width: 100%; height: auto; pointer-events: none; }
-        .resizer { width: 14px; height: 14px; background: #000; position: absolute; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; border: 2px solid #fff; opacity: 0; }
+        .miro-item img, .miro-item video, .miro-item iframe { display: block; width: 100%; height: auto; pointer-events: none; }
+        .miro-item iframe { height: 400px; pointer-events: auto; } /* PDF 预览 */
+        .resizer { width: 14px; height: 14px; background: #000; position: absolute; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; border: 2px solid #fff; opacity: 0; z-index: 10; }
         .miro-item.selected .resizer { opacity: 1; }
         
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 7000; display: flex; gap: 10px; }
@@ -97,18 +88,18 @@
 <div id="lvl2" class="view-layer"><div class="neural-grid" id="catGrid"></div></div>
 <div id="lvl3" class="view-layer"><div class="neural-grid" id="projGrid"></div></div>
 
-<div id="lvl4" class="view-layer">
+<div id="lvl4" class="view-layer" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
     <div class="lvl4-header">
         <div id="lvl4CatTag" style="font-size: 0.45rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px;">CATEGORY</div>
         <div id="lvl4Title" class="lvl4-project-title" onblur="saveToCloud()">PROJECT TITLE</div>
     </div>
     <div id="miro-viewport"></div>
     <div class="miro-ui" id="adminControls" style="display:none;">
-        <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ IMAGE</button>
+        <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ ADD MEDIA</button>
         <button class="ui-btn" onclick="saveToCloud()">SAVE LAYOUT</button>
     </div>
     <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN</div>
-    <input type="file" id="fileInput" hidden accept="image/*" onchange="handleUpload(event)">
+    <input type="file" id="fileInput" hidden accept="image/*,video/*,application/pdf" onchange="handleUpload(event)">
 </div>
 
 <script>
@@ -135,7 +126,7 @@
 
     let isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
-    let dragTarget = null, resizeTarget = null, startX, startY, startW, selectedItem = null;
+    let dragTarget = null, startX, startY, startW, selectedItem = null;
 
     // --- 2. 管理功能 ---
     function checkUnlock() {
@@ -143,7 +134,7 @@
         if(prompt("Admin Password:") === "li123") {
             isAdmin = true;
             document.getElementById('adminControls').style.display = 'flex';
-            document.getElementById('lvl4Title').contenteditable = true;
+            document.getElementById('lvl4Title').contentEditable = true;
             document.getElementById('adminInfo').innerText = "ADMIN: ACTIVE";
             if(currentLvl === 3) renderProjGrid();
         }
@@ -167,10 +158,15 @@
 
     async function saveToCloud() {
         if(!isAdmin || !currentProj) return;
-        const items = Array.from(document.querySelectorAll('.miro-item')).map(el => ({
-            src: el.querySelector('img').src, x: el.style.left, y: el.style.top, w: el.style.width
-        }));
-        await db.ref('portfolio_data/' + currentProj.id).update({ title: document.getElementById('lvl4Title').innerText, layout: items });
+        const items = Array.from(document.querySelectorAll('.miro-item')).map(el => {
+            const media = el.querySelector('img, video, iframe');
+            return {
+                src: media.src, type: media.tagName.toLowerCase(), x: el.style.left, y: el.style.top, w: el.style.width
+            };
+        });
+        const newTitle = document.getElementById('lvl4Title').innerText;
+        currentProj.title = newTitle;
+        await db.ref('portfolio_data/' + currentProj.id).update({ title: newTitle, layout: items });
     }
 
     async function saveTitleFromL3(projId, newTitle) {
@@ -186,7 +182,12 @@
         document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
         if(lvl === 2) renderCatGrid();
         if(lvl === 3) renderProjGrid();
-        if(lvl === 4) { document.getElementById('lvl4Title').innerText = currentProj.title; loadBoard(); resetViewport(); }
+        if(lvl === 4) { 
+            document.getElementById('lvl4CatTag').innerText = currentCat;
+            document.getElementById('lvl4Title').innerText = currentProj.title; 
+            loadBoard(); 
+            resetViewport(); 
+        }
         document.getElementById('lvl' + lvl).classList.add('active');
         document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
         document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
@@ -207,7 +208,7 @@
 
     function renderProjGrid() {
         document.getElementById('projGrid').innerHTML = portfolio[currentCat].projects.map(p => {
-            const topImg = p.layout?.slice(-1)[0]?.src;
+            const topImg = p.layout?.find(it => it.type === 'img')?.src;
             return `<div class="stack-container">
                 <div class="neural-stack" onclick="enterProject('${p.id}')">
                     <div class="neural-layer layer-2"></div>
@@ -220,81 +221,85 @@
 
     function enterProject(id) { currentProj = portfolio[currentCat].projects.find(p => p.id === id); showLevel(4); }
 
-    // --- 4. MIRO 引擎 (增加键盘删除支持) ---
+    // --- 4. MIRO 引擎 (拖拽与多媒体适配) ---
     const vp = document.getElementById('miro-viewport');
     const bd = document.getElementById('lvl4');
 
-    // 监听全局按键
-    window.addEventListener('keydown', (e) => {
-        if (currentLvl === 4 && (e.key === 'Delete' || e.key === 'Backspace')) {
-            // 如果用户正在编辑项目标题，不触发图片删除
-            if (document.activeElement.id === 'lvl4Title') return;
-            
-            if (selectedItem && isAdmin) {
-                if (confirm('Delete selected image?')) {
-                    selectedItem.remove();
-                    selectedItem = null;
-                    saveToCloud(); // 立即同步
-                }
-            }
+    // 删除功能适配
+    window.addEventListener('keydown', e => {
+        if(currentLvl === 4 && selectedItem && (e.key === 'Delete' || e.key === 'Backspace') && !e.target.isContentEditable) {
+            selectedItem.remove(); selectedItem = null;
         }
     });
 
-    bd.addEventListener('touchstart', e => { if(e.touches.length === 1) handleStart(e.touches[0].clientX, e.touches[0].clientY, e.target); });
-    bd.onmousedown = (e) => handleStart(e.clientX, e.clientY, e.target);
-
-    function handleStart(x, y, target) {
+    bd.onmousedown = (e) => {
         if(currentLvl !== 4) return;
-        const item = target.closest('.miro-item');
-        
+        const item = e.target.closest('.miro-item');
         if(selectedItem) selectedItem.classList.remove('selected');
-        
         if(item) {
-            selectedItem = item; 
-            item.classList.add('selected'); 
-            vp.appendChild(item); // 选中的图层移到最前
-            if(target.classList.contains('resizer')) { isResizing = true; startX = x; startW = item.offsetWidth; }
-            else { isDragging = true; dragTarget = item; startX = (x/zoom)-item.offsetLeft; startY = (y/zoom)-item.offsetTop; }
-        } else { 
-            selectedItem = null; // 点击空白取消选中
-            isPanning = true; 
-            startX = x - panX; 
-            startY = y - panY; 
-        }
-    }
+            selectedItem = item; item.classList.add('selected'); vp.appendChild(item);
+            if(e.target.classList.contains('resizer')) { isResizing = true; startX = e.clientX; startW = item.offsetWidth; }
+            else { isDragging = true; dragTarget = item; startX = (e.clientX/zoom)-item.offsetLeft; startY = (e.clientY/zoom)-item.offsetTop; }
+        } else { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; }
+    };
 
-    window.onmousemove = (e) => handleMove(e.clientX, e.clientY);
-    bd.addEventListener('touchmove', e => { if(e.touches.length === 1) handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
-
-    function handleMove(x, y) {
-        if(isPanning) { panX = x - startX; panY = y - startY; updateViewport(); }
-        else if(isResizing && selectedItem) { selectedItem.style.width = (startW + (x - startX) / zoom) + 'px'; }
-        else if(isDragging && dragTarget) { dragTarget.style.left = (x/zoom-startX)+'px'; dragTarget.style.top = (y/zoom-startY)+'px'; }
-    }
-    window.onmouseup = window.ontouchend = () => isPanning = isDragging = isResizing = false;
+    window.onmousemove = (e) => {
+        if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
+        else if(isResizing) { selectedItem.style.width = (startW + (e.clientX - startX) / zoom) + 'px'; }
+        else if(isDragging) { dragTarget.style.left = (e.clientX/zoom-startX)+'px'; dragTarget.style.top = (e.clientY/zoom-startY)+'px'; }
+    };
+    window.onmouseup = () => isPanning = isDragging = isResizing = false;
     bd.addEventListener('wheel', e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; zoom = Math.min(Math.max(zoom * d, 0.1), 5); updateViewport(); }, {passive:false});
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
     function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
 
     function loadBoard() {
         vp.innerHTML = '';
-        (currentProj.layout || []).forEach(it => {
-            const d = document.createElement('div'); d.className = 'miro-item'; d.style.left = it.x; d.style.top = it.y; d.style.width = it.w;
-            d.innerHTML = `<img src="${it.src}"><div class="resizer"></div>`; vp.appendChild(d);
+        (currentProj.layout || []).forEach(it => createMediaElement(it.src, it.type, it.x, it.y, it.w));
+    }
+
+    function createMediaElement(src, type, x, y, w) {
+        const div = document.createElement('div');
+        div.className = 'miro-item'; div.style.left = x; div.style.top = y; div.style.width = w || '300px';
+        let content = '';
+        if(type === 'video') content = `<video src="${src}" controls autoplay loop muted></video>`;
+        else if(type === 'iframe') content = `<iframe src="${src}"></iframe>`;
+        else content = `<img src="${src}">`;
+        div.innerHTML = `${content}<div class="resizer"></div>`;
+        vp.appendChild(div);
+        return div;
+    }
+
+    // 上传与拖拽处理
+    function handleDrop(e) {
+        e.preventDefault();
+        if(!isAdmin) return;
+        const files = e.dataTransfer.files;
+        if(files.length) processFiles(files, e.clientX, e.clientY);
+    }
+
+    function handleUpload(e) {
+        if(e.target.files.length) processFiles(e.target.files, window.innerWidth/2, window.innerHeight/2);
+    }
+
+    function processFiles(files, clientX, clientY) {
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            const type = file.type;
+            reader.onload = (e) => {
+                let mediaType = 'img';
+                if(type.includes('video')) mediaType = 'video';
+                else if(type.includes('pdf')) mediaType = 'iframe';
+                
+                const x = (clientX - panX) / zoom + 'px';
+                const y = (clientY - panY) / zoom + 'px';
+                createMediaElement(e.target.result, mediaType, x, y, '300px');
+            };
+            reader.readAsDataURL(file);
         });
     }
 
-    function handleUpload(event) {
-        const file = event.target.files[0]; if(!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const div = document.createElement('div'); div.className = 'miro-item'; div.style.width = '300px';
-            div.style.left = (window.innerWidth/2-panX)/zoom+'px'; div.style.top = (window.innerHeight/2-panY)/zoom+'px';
-            div.innerHTML = `<img src="${e.target.result}"><div class="resizer"></div>`; vp.appendChild(div);
-        }; reader.readAsDataURL(file);
-    }
-
-    // --- 5. 粒子系统 ---
+    // --- 5. 粒子系统 (保持原样) ---
     const cvs = document.getElementById('particleCanvas'); const ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
