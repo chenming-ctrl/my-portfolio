@@ -12,7 +12,6 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #fff; font-family: "Helvetica Neue", sans-serif; overflow: hidden; touch-action: none; -webkit-font-smoothing: antialiased; }
         #canvas-container { position: fixed; width: 100%; height: 100%; z-index: 1; transition: filter 1s ease; filter: blur(var(--bg-blur)); pointer-events: none; }
         
-        /* --- 导航栏 --- */
         nav { position: fixed; top: 0; left: 0; width: 100%; padding: 40px 60px; display: flex; justify-content: space-between; align-items: center; z-index: 5000; box-sizing: border-box; opacity: 0; transform: translateY(-20px); transition: 0.8s ease; pointer-events: none; }
         nav.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .nav-logo { font-size: 0.9rem; font-weight: 600; letter-spacing: 2px; cursor: pointer; color: #000; }
@@ -20,16 +19,13 @@
         .nav-links a { text-decoration: none; color: #999; font-size: 0.6rem; text-transform: uppercase; cursor: pointer; transition: 0.3s; }
         .nav-links a:hover { color: #000; }
 
-        /* --- 返回按钮 --- */
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
         .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; transition: 0.3s; padding: 10px; }
-        .back-btn:hover { color: #000; letter-spacing: 5px; }
 
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
 
-        /* --- 样式补全 --- */
         #lvl1 h1 { font-size: 3.5rem; font-weight: 100; letter-spacing: 20px; margin-bottom: 20px; text-transform: uppercase; }
         #lvl1 p { font-size: 0.55rem; color: #aaa; letter-spacing: 8px; text-transform: uppercase; }
         .neural-grid { display: flex; gap: 50px; justify-content: center; align-items: center; width: 95%; flex-wrap: wrap; padding: 20px; }
@@ -38,13 +34,10 @@
         .neural-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; border: 1px solid rgba(0,0,0,0.06); overflow: hidden; transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 5px 15px rgba(0,0,0,0.03); }
         .neural-layer img, .neural-layer video { width: 100%; height: 100%; object-fit: cover; }
         .layer-1 { z-index: 5; } .layer-2 { z-index: 4; transform: translate(8px, -8px); opacity: 0.7; }
-        .stack-container:hover .layer-1 { transform: translate(-20px, -20px) rotate(-5deg); box-shadow: 20px 20px 40px rgba(0,0,0,0.1); }
-        .stack-label { margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; outline: none; border-bottom: 1px solid transparent; display: inline-block; }
+        .stack-label { margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; display: inline-block; outline: none; }
 
-        /* --- Miro 画布 --- */
+        /* Miro 画布样式 */
         #lvl4 { background: #fbfbfb; z-index: 6000; cursor: crosshair; }
-        .lvl4-header { position: fixed; top: 100px; left: 60px; z-index: 7000; pointer-events: none; }
-        .lvl4-project-title { font-size: 1.8rem; font-weight: 200; letter-spacing: 8px; text-transform: uppercase; color: #000; outline: none; pointer-events: auto; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform; }
         .miro-item { position: absolute; background: white; padding: 5px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 2px solid transparent; }
         .miro-item.selected { border-color: #007aff; }
@@ -52,13 +45,16 @@
         .resizer { width: 14px; height: 14px; background: #007aff; position: absolute; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; border: 2px solid #fff; opacity: 0; z-index: 10; }
         .miro-item.selected .resizer { opacity: 1; }
         
+        /* 辅助线与框选 */
         .guide-line { position: absolute; background-color: #007aff; z-index: 5999; pointer-events: none; display: none; }
         .guide-h { height: 1px; width: 10000px; left: -5000px; }
         .guide-v { width: 1px; height: 10000px; top: -5000px; }
         #selection-marquee { position: absolute; border: 1px solid #007aff; background: rgba(0, 122, 255, 0.1); pointer-events: none; z-index: 7000; display: none; }
 
-        .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 7000; display: flex; gap: 10px; }
+        /* UI 与 保存状态 */
+        .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 7000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
+        #save-status { font-size: 0.5rem; color: #ccc; letter-spacing: 1px; text-transform: uppercase; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.4rem; color: #ccc; cursor: pointer; z-index: 7001; letter-spacing: 1px; }
     </style>
 </head>
@@ -80,21 +76,19 @@
 
 <div id="lvl4" class="view-layer" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
     <div class="lvl4-header">
-        <div id="lvl4CatTag" style="font-size: 0.45rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px;">CATEGORY</div>
         <div id="lvl4Title" class="lvl4-project-title" onblur="saveToCloud()">PROJECT TITLE</div>
     </div>
     <div id="miro-viewport"><div id="guide-x" class="guide-line guide-h"></div><div id="guide-y" class="guide-line guide-v"></div></div>
     <div id="selection-marquee"></div>
     <div class="miro-ui" id="adminControls" style="display:none;">
         <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ MEDIA</button>
-        <button class="ui-btn" onclick="saveToCloud()">SAVE</button>
+        <span id="save-status">Cloud Synced</span>
     </div>
     <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN</div>
     <input type="file" id="fileInput" hidden accept="image/*,video/*,application/pdf" onchange="handleUpload(event)">
 </div>
 
 <script>
-    // --- 1. FIREBASE 配置 ---
     const firebaseConfig = {
         apiKey: "AIzaSyDIQ48e3qR33xhvwDawYsyzZQpexiHAHNM",
         authDomain: "chenming-portfolio.firebaseapp.com",
@@ -117,21 +111,73 @@
 
     let isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, isMarquee = false;
-    let selectedItems = [], startX, startY, marqueeStart = {x:0,y:0}, undoStack = [];
+    let selectedItems = [], startX, startY, marqueeStart = {x:0,y:0}, undoStack = [], autoSaveTimer;
     const SNAP_THRESHOLD = 8;
 
-    // --- 2. 路由与同步优化 ---
-    // 监听浏览器后退
-    window.onpopstate = (e) => {
-        if (e.state) {
-            currentLvl = e.state.lvl;
-            currentCat = e.state.cat;
-            currentProj = e.state.proj;
-            renderView(currentLvl, false);
-        } else {
-            renderView(1, false);
+    // --- 自动保存与云端同步 ---
+    function updateSaveStatus(text) {
+        const status = document.getElementById('save-status');
+        if(status) status.innerText = text;
+    }
+
+    // 自动保存防抖函数
+    function triggerAutoSave() {
+        if(!isAdmin || currentLvl !== 4) return;
+        updateSaveStatus("Saving...");
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => {
+            saveToCloud();
+        }, 1500); // 停止操作1.5秒后保存
+    }
+
+    async function saveToCloud() {
+        if(!isAdmin || !currentProj) return;
+        const items = Array.from(document.querySelectorAll('.miro-item')).map(el => {
+            const media = el.querySelector('img, video, iframe');
+            return { src: media.src, type: media.tagName.toLowerCase(), x: el.style.left, y: el.style.top, w: el.style.width };
+        });
+        await db.ref('portfolio_data/' + currentProj.id).update({ title: document.getElementById('lvl4Title').innerText, layout: items });
+        updateSaveStatus("Cloud Synced");
+    }
+
+    async function syncFromCloud() {
+        const snap = await db.ref('portfolio_data').once('value');
+        if(snap.exists()) {
+            const data = snap.val();
+            Object.keys(portfolio).forEach(cat => {
+                portfolio[cat].projects.forEach(p => { if(data[p.id]) { p.title = data[p.id].title || p.title; p.layout = data[p.id].layout || []; } });
+            });
         }
+        if(currentLvl === 2) renderCatGrid();
+        if(currentLvl === 3) renderProjGrid();
+    }
+
+    // --- 路由与层级 ---
+    window.onpopstate = (e) => {
+        if (e.state) { currentLvl = e.state.lvl; currentCat = e.state.cat; currentProj = e.state.proj; renderView(currentLvl, false); }
+        else { renderView(1, false); }
     };
+
+    function showLevel(lvl, cat = '', proj = null) {
+        currentLvl = lvl; currentCat = cat; if(proj) currentProj = proj;
+        history.pushState({lvl, cat, proj: currentProj}, "", "");
+        renderView(lvl);
+    }
+
+    function renderView(lvl, doSync = true) {
+        document.querySelectorAll('.view-layer').forEach(el => el.classList.remove('active'));
+        document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
+        if(lvl === 2) renderCatGrid();
+        if(lvl === 3) renderProjGrid();
+        if(lvl === 4) { document.getElementById('lvl4Title').innerText = currentProj.title; loadBoard(); resetViewport(); }
+        document.getElementById('lvl' + lvl).classList.add('active');
+        document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
+        document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
+        document.getElementById('backBtnContainer').classList.toggle('show', lvl > 1);
+        if(doSync) syncFromCloud();
+    }
+
+    function handleBack() { history.back(); }
 
     function checkUnlock() {
         if(isAdmin) return;
@@ -143,74 +189,11 @@
         }
     }
 
-    // 性能优化：只有在真正需要时才拉取云端数据，且不再阻塞渲染
-    async function syncFromCloud() {
-        const snap = await db.ref('portfolio_data').once('value');
-        if(snap.exists()) {
-            const data = snap.val();
-            Object.keys(portfolio).forEach(cat => {
-                portfolio[cat].projects.forEach(p => { if(data[p.id]) { p.title = data[p.id].title || p.title; p.layout = data[p.id].layout || []; } });
-            });
-        }
-        // 拉取完后如果当前在相应页面，刷新局部UI
-        if(currentLvl === 2) renderCatGrid();
-        if(currentLvl === 3) renderProjGrid();
-    }
+    // --- MIRO 核心引擎 ---
+    const vp = document.getElementById('miro-viewport');
+    const bd = document.getElementById('lvl4');
+    const marquee = document.getElementById('selection-marquee');
 
-    async function saveToCloud() {
-        if(!isAdmin || !currentProj) return;
-        const items = Array.from(document.querySelectorAll('.miro-item')).map(el => {
-            const media = el.querySelector('img, video, iframe');
-            return { src: media.src, type: media.tagName.toLowerCase(), x: el.style.left, y: el.style.top, w: el.style.width };
-        });
-        await db.ref('portfolio_data/' + currentProj.id).update({ title: document.getElementById('lvl4Title').innerText, layout: items });
-    }
-
-    function showLevel(lvl, cat = '', proj = null) {
-        currentLvl = lvl; currentCat = cat; if(proj) currentProj = proj;
-        // 推送状态到浏览器历史
-        history.pushState({lvl, cat, proj: currentProj}, "", "");
-        renderView(lvl);
-    }
-
-    function renderView(lvl, doSync = true) {
-        document.querySelectorAll('.view-layer').forEach(el => el.classList.remove('active'));
-        document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
-        
-        if(lvl === 2) renderCatGrid();
-        if(lvl === 3) renderProjGrid();
-        if(lvl === 4) { document.getElementById('lvl4Title').innerText = currentProj.title; loadBoard(); resetViewport(); }
-        
-        document.getElementById('lvl' + lvl).classList.add('active');
-        document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
-        document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
-        document.getElementById('backBtnContainer').classList.toggle('show', lvl > 1);
-        
-        // 异步后台同步，不阻塞切换动画
-        if(doSync) syncFromCloud();
-    }
-
-    function handleBack() { history.back(); }
-
-    function renderCatGrid() {
-        document.getElementById('catGrid').innerHTML = Object.keys(portfolio).map(cat => `
-            <div class="stack-container" onclick="showLevel(3, '${cat}')">
-                <div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1"><img src="${portfolio[cat].thumb}" onerror="this.outerHTML='<div class=\'placeholder-box\'>⬡</div>'"></div></div>
-                <div class="stack-label">${cat}</div>
-            </div>`).join('');
-    }
-
-    function renderProjGrid() {
-        document.getElementById('projGrid').innerHTML = portfolio[currentCat].projects.map(p => {
-            const topImg = p.layout?.find(it => it.type === 'img')?.src;
-            return `<div class="stack-container">
-                <div class="neural-stack" onclick="showLevel(4, '${currentCat}', portfolio['${currentCat}'].projects.find(x=>x.id==='${p.id}'))"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${topImg ? `<img src="${topImg}">` : `<div class=\'placeholder-box\'>⬡</div>`}</div></div>
-                <div class="stack-label" contenteditable="${isAdmin}" onblur="saveToCloud()">${p.title}</div>
-            </div>`;
-        }).join('');
-    }
-
-    // --- 3. MIRO 引擎 (撤回功能) ---
     function pushHistory() {
         const snapshot = Array.from(document.querySelectorAll('.miro-item')).map(el => ({
             src: el.querySelector('img, video, iframe').src,
@@ -226,21 +209,14 @@
         const state = JSON.parse(undoStack.pop());
         vp.innerHTML = '<div id="guide-x" class="guide-line guide-h"></div><div id="guide-y" class="guide-line guide-v"></div>';
         state.forEach(it => createMediaElement(it.src, it.type, it.x, it.y, it.w));
+        triggerAutoSave(); // 撤回后触发保存
     }
-
-    const vp = document.getElementById('miro-viewport');
-    const bd = document.getElementById('lvl4');
-    const marquee = document.getElementById('selection-marquee');
 
     window.addEventListener('keydown', e => {
         if(currentLvl !== 4) return;
-        // 撤回 Ctrl + Z
-        if((e.ctrlKey || e.metaKey) && e.key === 'z') {
-            e.preventDefault(); undo(); return;
-        }
-        // 删除
+        if((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); return; }
         if((e.key === 'Delete' || e.key === 'Backspace') && !e.target.isContentEditable) {
-            pushHistory(); selectedItems.forEach(el => el.remove()); selectedItems = []; saveToCloud();
+            pushHistory(); selectedItems.forEach(el => el.remove()); selectedItems = []; triggerAutoSave();
         }
     });
 
@@ -250,13 +226,12 @@
         if(e.button === 1) { isPanning = true; startX = x - panX; startY = y - panY; e.preventDefault(); return; }
         const item = e.target.closest('.miro-item');
         if(item) {
-            pushHistory(); // 操作前保存历史
+            pushHistory();
             if(!selectedItems.includes(item)) { if(!e.shiftKey) clearSelection(); selectedItems.push(item); item.classList.add('selected'); }
             if(e.target.classList.contains('resizer')) { isResizing = true; startX = x; item._startW = item.offsetWidth; }
             else { isDragging = true; selectedItems.forEach(el => { el._ox = (x/zoom)-parseInt(el.style.left); el._oy = (y/zoom)-parseInt(el.style.top); }); }
         } else {
-            clearSelection();
-            isMarquee = true; marqueeStart = {x, y}; marquee.style.display = 'block';
+            clearSelection(); isMarquee = true; marqueeStart = {x, y}; marquee.style.display = 'block';
         }
     };
 
@@ -276,12 +251,13 @@
         else if(isDragging) { selectedItems.forEach((el, i) => { el.style.left = (x/zoom-el._ox)+'px'; el.style.top = (y/zoom-el._oy)+'px'; if(i===0) doSnap(el); }); }
     };
 
-    window.onmouseup = () => { isPanning = isDragging = isResizing = isMarquee = false; marquee.style.display = 'none'; hideGuides(); };
-    bd.addEventListener('wheel', e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; zoom = Math.min(Math.max(zoom * d, 0.1), 5); updateViewport(); }, {passive:false});
+    window.onmouseup = () => { 
+        if(isDragging || isResizing) triggerAutoSave(); // 松开鼠标时触发自动保存
+        isPanning = isDragging = isResizing = isMarquee = false; 
+        marquee.style.display = 'none'; hideGuides(); 
+    };
 
-    function clearSelection() { selectedItems.forEach(el => el.classList.remove('selected')); selectedItems = []; }
-    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
-    function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
+    bd.addEventListener('wheel', e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; zoom = Math.min(Math.max(zoom * d, 0.1), 5); updateViewport(); }, {passive:false});
 
     function doSnap(target) {
         const others = Array.from(document.querySelectorAll('.miro-item')).filter(el => !selectedItems.includes(el));
@@ -293,13 +269,17 @@
             if(Math.abs(tT - eT) < SNAP_THRESHOLD) { target.style.top = eT+'px'; showGuide('x', eT); }
         });
     }
+
+    function clearSelection() { selectedItems.forEach(el => el.classList.remove('selected')); selectedItems = []; }
+    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
+    function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
     function showGuide(dir, pos) { const g = document.getElementById('guide-'+dir); g.style.display = 'block'; if(dir==='x') g.style.top = pos+'px'; else g.style.left = pos+'px'; }
     function hideGuides() { document.getElementById('guide-x').style.display = document.getElementById('guide-y').style.display = 'none'; }
 
     function loadBoard() {
         vp.innerHTML = '<div id="guide-x" class="guide-line guide-h"></div><div id="guide-y" class="guide-line guide-v"></div>';
         (currentProj.layout || []).forEach(it => createMediaElement(it.src, it.type, it.x, it.y, it.w));
-        undoStack = []; // 切换项目清空撤回栈
+        undoStack = []; updateSaveStatus("Cloud Synced");
     }
 
     function createMediaElement(src, type, x, y, w) {
@@ -311,33 +291,29 @@
     function handleDrop(e) { e.preventDefault(); if(isAdmin) { pushHistory(); processFiles(e.dataTransfer.files, e.clientX, e.clientY); } }
     function handleUpload(e) { pushHistory(); processFiles(e.target.files, window.innerWidth/2, window.innerHeight/2); }
     function processFiles(files, cx, cy) {
+        let count = 0;
         Array.from(files).forEach(f => {
             const r = new FileReader();
-            r.onload = (e) => createMediaElement(e.target.result, f.type.includes('video')?'video':(f.type.includes('pdf')?'iframe':'img'), (cx-panX)/zoom+'px', (cy-panY)/zoom+'px', '300px');
+            r.onload = (e) => {
+                createMediaElement(e.target.result, f.type.includes('video')?'video':(f.type.includes('pdf')?'iframe':'img'), (cx-panX)/zoom+'px', (cy-panY)/zoom+'px', '300px');
+                count++; if(count === files.length) triggerAutoSave(); // 文件全部加载后保存
+            };
             r.readAsDataURL(f);
         });
     }
 
-    // --- 4. 粒子系统 ---
+    // --- 粒子系统 ---
     const cvs = document.getElementById('particleCanvas'); const ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
-
     class P {
-        constructor() { 
-            this.x = Math.random()*cvs.width; this.y = Math.random()*cvs.height; 
-            this.bs = Math.random()*2+2; this.s = this.bs; 
-            this.c = ['#4285F4','#34A853','#FBBC05','#EA4335','#9b59b6'][Math.floor(Math.random()*5)]; 
-            this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3}; 
-            this.st = 1; this.a = 0; 
-        }
+        constructor() { this.x = Math.random()*cvs.width; this.y = Math.random()*cvs.height; this.bs = Math.random()*2+2; this.s = this.bs; this.c = ['#4285F4','#34A853','#FBBC05','#EA4335','#9b59b6'][Math.floor(Math.random()*5)]; this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3}; this.st = 1; this.a = 0; }
         update() {
             this.x+=this.v.x; this.y+=this.v.y; if(this.x<0||this.x>cvs.width)this.v.x*=-1; if(this.y<0||this.y>cvs.height)this.v.y*=-1;
             let d = Math.hypot(m.smX-this.x, m.smY-this.y);
             if(d < 180) { let f = (180-d)/180; this.s = this.bs + f*25; this.st = 1 + (Math.hypot(m.vx, m.vy) * 0.15 * f); this.a = Math.atan2(m.vy, m.vx); }
             else { this.s += (this.bs-this.s)*0.1; this.st += (1-this.st)*0.1; }
-            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a); ctx.beginPath(); 
-            ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a); ctx.beginPath(); ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
             ctx.fillStyle = this.c; ctx.globalAlpha = (currentLvl>1)?0.3:0.6; ctx.fill(); ctx.restore();
         }
     }
@@ -349,6 +325,23 @@
     }
     window.onload = () => { init(); animate(); syncFromCloud(); };
     window.onresize = init;
+    
+    function renderCatGrid() {
+        document.getElementById('catGrid').innerHTML = Object.keys(portfolio).map(cat => `
+            <div class="stack-container" onclick="showLevel(3, '${cat}')">
+                <div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1"><img src="${portfolio[cat].thumb}" onerror="this.outerHTML='<div class=\'placeholder-box\'>⬡</div>'"></div></div>
+                <div class="stack-label">${cat}</div>
+            </div>`).join('');
+    }
+    function renderProjGrid() {
+        document.getElementById('projGrid').innerHTML = portfolio[currentCat].projects.map(p => {
+            const topImg = p.layout?.find(it => it.type === 'img')?.src;
+            return `<div class="stack-container">
+                <div class="neural-stack" onclick="showLevel(4, '${currentCat}', portfolio['${currentCat}'].projects.find(x=>x.id==='${p.id}'))"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${topImg ? `<img src="${topImg}">` : `<div class=\'placeholder-box\'>⬡</div>`}</div></div>
+                <div class="stack-label" contenteditable="${isAdmin}" onblur="saveToCloud()">${p.title}</div>
+            </div>`;
+        }).join('');
+    }
     document.getElementById('dynamicNav').innerHTML = Object.keys(portfolio).map(cat => `<a onclick="showLevel(3, '${cat}')">${cat}</a>`).join('');
 </script>
 </body>
