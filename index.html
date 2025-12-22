@@ -12,6 +12,7 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #fff; font-family: "Helvetica Neue", sans-serif; overflow: hidden; touch-action: none; -webkit-font-smoothing: antialiased; }
         #canvas-container { position: fixed; width: 100%; height: 100%; z-index: 1; transition: filter 1s ease; filter: blur(var(--bg-blur)); pointer-events: none; }
         
+        /* --- 导航栏 --- */
         nav { position: fixed; top: 0; left: 0; width: 100%; padding: 40px 60px; display: flex; justify-content: space-between; align-items: center; z-index: 5000; box-sizing: border-box; opacity: 0; transform: translateY(-20px); transition: 0.8s ease; pointer-events: none; }
         nav.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .nav-logo { font-size: 0.9rem; font-weight: 600; letter-spacing: 2px; cursor: pointer; color: #000; }
@@ -19,6 +20,7 @@
         .nav-links a { text-decoration: none; color: #999; font-size: 0.6rem; text-transform: uppercase; cursor: pointer; transition: 0.3s; }
         .nav-links a:hover { color: #000; }
 
+        /* --- 返回按钮 --- */
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
         .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; transition: 0.3s; padding: 10px; }
@@ -26,6 +28,7 @@
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
 
+        /* --- 首页/网格样式 --- */
         #lvl1 h1 { font-size: 3.5rem; font-weight: 100; letter-spacing: 20px; margin-bottom: 20px; text-transform: uppercase; }
         #lvl1 p { font-size: 0.55rem; color: #aaa; letter-spacing: 8px; text-transform: uppercase; }
         .neural-grid { display: flex; gap: 50px; justify-content: center; align-items: center; width: 95%; flex-wrap: wrap; padding: 20px; }
@@ -36,8 +39,12 @@
         .layer-1 { z-index: 5; } .layer-2 { z-index: 4; transform: translate(8px, -8px); opacity: 0.7; }
         .stack-label { margin-top: 30px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; display: inline-block; outline: none; }
 
-        /* Miro 画布样式 */
+        /* --- Miro 画布与标题 --- */
         #lvl4 { background: #fbfbfb; z-index: 6000; cursor: crosshair; }
+        .lvl4-header { position: fixed; top: 100px; left: 60px; z-index: 7000; pointer-events: none; text-align: left; }
+        .lvl4-project-title { font-size: 1.8rem; font-weight: 200; letter-spacing: 8px; text-transform: uppercase; color: #000; outline: none; pointer-events: auto; }
+        #lvl4CatTag { font-size: 0.45rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px; text-transform: uppercase; }
+        
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform; }
         .miro-item { position: absolute; background: white; padding: 5px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 2px solid transparent; }
         .miro-item.selected { border-color: #007aff; }
@@ -45,13 +52,11 @@
         .resizer { width: 14px; height: 14px; background: #007aff; position: absolute; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; border: 2px solid #fff; opacity: 0; z-index: 10; }
         .miro-item.selected .resizer { opacity: 1; }
         
-        /* 辅助线与框选 */
         .guide-line { position: absolute; background-color: #007aff; z-index: 5999; pointer-events: none; display: none; }
         .guide-h { height: 1px; width: 10000px; left: -5000px; }
         .guide-v { width: 1px; height: 10000px; top: -5000px; }
         #selection-marquee { position: absolute; border: 1px solid #007aff; background: rgba(0, 122, 255, 0.1); pointer-events: none; z-index: 7000; display: none; }
 
-        /* UI 与 保存状态 */
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 7000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         #save-status { font-size: 0.5rem; color: #ccc; letter-spacing: 1px; text-transform: uppercase; }
@@ -76,6 +81,7 @@
 
 <div id="lvl4" class="view-layer" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
     <div class="lvl4-header">
+        <div id="lvl4CatTag">CATEGORY</div>
         <div id="lvl4Title" class="lvl4-project-title" onblur="saveToCloud()">PROJECT TITLE</div>
     </div>
     <div id="miro-viewport"><div id="guide-x" class="guide-line guide-h"></div><div id="guide-y" class="guide-line guide-v"></div></div>
@@ -114,44 +120,6 @@
     let selectedItems = [], startX, startY, marqueeStart = {x:0,y:0}, undoStack = [], autoSaveTimer;
     const SNAP_THRESHOLD = 8;
 
-    // --- 自动保存与云端同步 ---
-    function updateSaveStatus(text) {
-        const status = document.getElementById('save-status');
-        if(status) status.innerText = text;
-    }
-
-    // 自动保存防抖函数
-    function triggerAutoSave() {
-        if(!isAdmin || currentLvl !== 4) return;
-        updateSaveStatus("Saving...");
-        clearTimeout(autoSaveTimer);
-        autoSaveTimer = setTimeout(() => {
-            saveToCloud();
-        }, 1500); // 停止操作1.5秒后保存
-    }
-
-    async function saveToCloud() {
-        if(!isAdmin || !currentProj) return;
-        const items = Array.from(document.querySelectorAll('.miro-item')).map(el => {
-            const media = el.querySelector('img, video, iframe');
-            return { src: media.src, type: media.tagName.toLowerCase(), x: el.style.left, y: el.style.top, w: el.style.width };
-        });
-        await db.ref('portfolio_data/' + currentProj.id).update({ title: document.getElementById('lvl4Title').innerText, layout: items });
-        updateSaveStatus("Cloud Synced");
-    }
-
-    async function syncFromCloud() {
-        const snap = await db.ref('portfolio_data').once('value');
-        if(snap.exists()) {
-            const data = snap.val();
-            Object.keys(portfolio).forEach(cat => {
-                portfolio[cat].projects.forEach(p => { if(data[p.id]) { p.title = data[p.id].title || p.title; p.layout = data[p.id].layout || []; } });
-            });
-        }
-        if(currentLvl === 2) renderCatGrid();
-        if(currentLvl === 3) renderProjGrid();
-    }
-
     // --- 路由与层级 ---
     window.onpopstate = (e) => {
         if (e.state) { currentLvl = e.state.lvl; currentCat = e.state.cat; currentProj = e.state.proj; renderView(currentLvl, false); }
@@ -169,7 +137,11 @@
         document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
         if(lvl === 2) renderCatGrid();
         if(lvl === 3) renderProjGrid();
-        if(lvl === 4) { document.getElementById('lvl4Title').innerText = currentProj.title; loadBoard(); resetViewport(); }
+        if(lvl === 4) { 
+            document.getElementById('lvl4Title').innerText = currentProj.title; 
+            document.getElementById('lvl4CatTag').innerText = currentCat;
+            loadBoard(); resetViewport(); 
+        }
         document.getElementById('lvl' + lvl).classList.add('active');
         document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
         document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
@@ -187,6 +159,36 @@
             document.getElementById('lvl4Title').contentEditable = true;
             document.getElementById('adminInfo').innerText = "ADMIN: ACTIVE";
         }
+    }
+
+    // --- 自动保存与云端 ---
+    function triggerAutoSave() {
+        if(!isAdmin || currentLvl !== 4) return;
+        document.getElementById('save-status').innerText = "Saving...";
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => saveToCloud(), 1500);
+    }
+
+    async function saveToCloud() {
+        if(!isAdmin || !currentProj) return;
+        const items = Array.from(document.querySelectorAll('.miro-item')).map(el => {
+            const media = el.querySelector('img, video, iframe');
+            return { src: media.src, type: media.tagName.toLowerCase(), x: el.style.left, y: el.style.top, w: el.style.width };
+        });
+        await db.ref('portfolio_data/' + currentProj.id).update({ title: document.getElementById('lvl4Title').innerText, layout: items });
+        document.getElementById('save-status').innerText = "Cloud Synced";
+    }
+
+    async function syncFromCloud() {
+        const snap = await db.ref('portfolio_data').once('value');
+        if(snap.exists()) {
+            const data = snap.val();
+            Object.keys(portfolio).forEach(cat => {
+                portfolio[cat].projects.forEach(p => { if(data[p.id]) { p.title = data[p.id].title || p.title; p.layout = data[p.id].layout || []; } });
+            });
+        }
+        if(currentLvl === 2) renderCatGrid();
+        if(currentLvl === 3) renderProjGrid();
     }
 
     // --- MIRO 核心引擎 ---
@@ -209,7 +211,7 @@
         const state = JSON.parse(undoStack.pop());
         vp.innerHTML = '<div id="guide-x" class="guide-line guide-h"></div><div id="guide-y" class="guide-line guide-v"></div>';
         state.forEach(it => createMediaElement(it.src, it.type, it.x, it.y, it.w));
-        triggerAutoSave(); // 撤回后触发保存
+        triggerAutoSave();
     }
 
     window.addEventListener('keydown', e => {
@@ -239,24 +241,19 @@
         const x = e.clientX, y = e.clientY;
         if(isPanning) { panX = x - startX; panY = y - startY; updateViewport(); }
         else if(isMarquee) {
-            const left = Math.min(x, marqueeStart.x), top = Math.min(y, marqueeStart.y);
+            const l = Math.min(x, marqueeStart.x), t = Math.min(y, marqueeStart.y);
             const w = Math.abs(x - marqueeStart.x), h = Math.abs(y - marqueeStart.y);
-            marquee.style.left = left+'px'; marquee.style.top = top+'px'; marquee.style.width = w+'px'; marquee.style.height = h+'px';
+            marquee.style.left = l+'px'; marquee.style.top = t+'px'; marquee.style.width = w+'px'; marquee.style.height = h+'px';
             document.querySelectorAll('.miro-item').forEach(el => {
                 const r = el.getBoundingClientRect();
-                if(r.left > left && r.right < left+w && r.top > top && r.bottom < top+h) { if(!selectedItems.includes(el)) { selectedItems.push(el); el.classList.add('selected'); }}
+                if(r.left > l && r.right < l+w && r.top > t && r.bottom < t+h) { if(!selectedItems.includes(el)) { selectedItems.push(el); el.classList.add('selected'); }}
             });
         }
         else if(isResizing) { const it = selectedItems[0]; it.style.width = (it._startW + (x - startX)/zoom)+'px'; doSnap(it); }
         else if(isDragging) { selectedItems.forEach((el, i) => { el.style.left = (x/zoom-el._ox)+'px'; el.style.top = (y/zoom-el._oy)+'px'; if(i===0) doSnap(el); }); }
     };
 
-    window.onmouseup = () => { 
-        if(isDragging || isResizing) triggerAutoSave(); // 松开鼠标时触发自动保存
-        isPanning = isDragging = isResizing = isMarquee = false; 
-        marquee.style.display = 'none'; hideGuides(); 
-    };
-
+    window.onmouseup = () => { if(isDragging || isResizing) triggerAutoSave(); isPanning = isDragging = isResizing = isMarquee = false; marquee.style.display = 'none'; hideGuides(); };
     bd.addEventListener('wheel', e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; zoom = Math.min(Math.max(zoom * d, 0.1), 5); updateViewport(); }, {passive:false});
 
     function doSnap(target) {
@@ -279,7 +276,7 @@
     function loadBoard() {
         vp.innerHTML = '<div id="guide-x" class="guide-line guide-h"></div><div id="guide-y" class="guide-line guide-v"></div>';
         (currentProj.layout || []).forEach(it => createMediaElement(it.src, it.type, it.x, it.y, it.w));
-        undoStack = []; updateSaveStatus("Cloud Synced");
+        undoStack = [];
     }
 
     function createMediaElement(src, type, x, y, w) {
@@ -296,7 +293,7 @@
             const r = new FileReader();
             r.onload = (e) => {
                 createMediaElement(e.target.result, f.type.includes('video')?'video':(f.type.includes('pdf')?'iframe':'img'), (cx-panX)/zoom+'px', (cy-panY)/zoom+'px', '300px');
-                count++; if(count === files.length) triggerAutoSave(); // 文件全部加载后保存
+                count++; if(count === files.length) triggerAutoSave();
             };
             r.readAsDataURL(f);
         });
@@ -325,7 +322,7 @@
     }
     window.onload = () => { init(); animate(); syncFromCloud(); };
     window.onresize = init;
-    
+
     function renderCatGrid() {
         document.getElementById('catGrid').innerHTML = Object.keys(portfolio).map(cat => `
             <div class="stack-container" onclick="showLevel(3, '${cat}')">
