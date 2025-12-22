@@ -32,6 +32,11 @@
 
         .neural-grid { display: flex; gap: 60px; justify-content: center; align-items: center; width: 95%; flex-wrap: wrap; padding: 20px; }
         .stack-container { position: relative; width: 160px; height: 220px; cursor: pointer; text-align: center; perspective: 1000px; }
+        
+        /* --- 新增：删除项目按钮样式 --- */
+        .del-proj-btn { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; background: #ff4d4d; color: #fff; border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; border: 2px solid #fff; opacity: 0; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .stack-container:hover .del-proj-btn { opacity: 1; }
+
         .neural-stack { position: relative; width: 140px; height: 140px; transform-style: preserve-3d; margin: 0 auto; }
         .neural-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; border: 1px solid rgba(0,0,0,0.05); overflow: hidden; transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 5px 15px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: center; }
         .neural-layer img { width: 100%; height: 100%; object-fit: cover; }
@@ -125,32 +130,45 @@
     // --- 新增：创建项目逻辑 ---
     function createNewProject() {
         if (!isAdmin || !currentCat) return;
-        
-        // 计算默认名称 Proj.#x
-        const existingNumbers = portfolio[currentCat].projects
-            .map(p => {
-                const match = p.title.match(/Proj\.#(\d+)/);
-                return match ? parseInt(match[1]) : null;
-            })
-            .filter(n => n !== null)
-            .sort((a, b) => a - b);
-
+        const existingNumbers = portfolio[currentCat].projects.map(p => {
+            const match = p.title.match(/Proj\.#(\d+)/);
+            return match ? parseInt(match[1]) : null;
+        }).filter(n => n !== null).sort((a, b) => a - b);
         let minNum = 1;
-        for (let n of existingNumbers) {
-            if (n === minNum) minNum++;
-            else if (n > minNum) break;
-        }
-
+        for (let n of existingNumbers) { if (n === minNum) minNum++; else if (n > minNum) break; }
         const defaultTitle = `Proj.#${minNum}`;
         const newTitle = prompt("Enter project name:", defaultTitle) || defaultTitle;
-        const newId = `${currentCat[0].toLowerCase()}${Date.now()}`; // 简单唯一ID
-
+        const newId = `${currentCat[0].toLowerCase()}${Date.now()}`;
         const newProj = { id: newId, title: newTitle, layout: [] };
         portfolio[currentCat].projects.push(newProj);
-        
-        // 同步到 Firebase
         db.ref('portfolio_data/' + newId).set({ title: newTitle, layout: [] });
+        renderProjGrid();
+    }
+
+    // --- 新增：删除项目逻辑 ---
+    function deleteProject(id, event) {
+        event.stopPropagation(); // 阻止进入项目详情页
+        if (!isAdmin) return;
+
+        const projIndex = portfolio[currentCat].projects.findIndex(p => p.id === id);
+        const proj = portfolio[currentCat].projects[projIndex];
         
+        // 检查 layout 数组是否为空（对应没有图片和文字）
+        const isEmpty = !proj.layout || proj.layout.length === 0;
+
+        if (!isEmpty) {
+            const confirmName = prompt(`该项目包含内容，请输入项目名称 "${proj.title}" 以确认删除:`);
+            if (confirmName !== proj.title) {
+                alert("确认失败：输入的项目名称不匹配。");
+                return;
+            }
+        }
+
+        // 本地删除
+        portfolio[currentCat].projects.splice(projIndex, 1);
+        // 数据库删除
+        db.ref('portfolio_data/' + id).remove();
+        // 刷新列表
         renderProjGrid();
     }
 
@@ -224,6 +242,7 @@
         document.getElementById('projGrid').innerHTML = portfolio[currentCat].projects.map(p => {
             const imgs = getProjImages(p);
             return `<div class="stack-container" onclick="currentProj=portfolio['${currentCat}'].projects.find(x=>x.id==='${p.id}');showLevel(4)">
+                ${isAdmin ? `<div class="del-proj-btn" onclick="deleteProject('${p.id}', event)">✕</div>` : ''}
                 <div class="neural-stack">
                     <div class="neural-layer layer-3">${imgs[2] ? `<img src="${imgs[2]}">` : '<span class="placeholder-text">Empty</span>'}</div>
                     <div class="neural-layer layer-2">${imgs[1] ? `<img src="${imgs[1]}">` : '<span class="placeholder-text">Empty</span>'}</div>
@@ -236,7 +255,7 @@
 
     function renderCatGrid() {
         document.getElementById('catGrid').innerHTML = Object.keys(portfolio).map(cat => {
-            const imgs = getProjImages(portfolio[cat].projects[0]);
+            const imgs = portfolio[cat].projects[0] ? getProjImages(portfolio[cat].projects[0]) : [];
             return `<div class="stack-container" onclick="showLevel(3, '${cat}')">
                 <div class="neural-stack">
                     <div class="neural-layer layer-2"></div>
@@ -258,10 +277,7 @@
         currentLvl = lvl; if(cat) currentCat = cat;
         document.querySelectorAll('.view-layer').forEach(el => el.classList.remove('active'));
         document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
-        
-        // 按钮显示逻辑
         document.getElementById('addProjBtn').style.display = (lvl === 3 && isAdmin) ? 'block' : 'none';
-        
         if(lvl === 2) renderCatGrid();
         if(lvl === 3) renderProjGrid();
         if(lvl === 4) { 
@@ -318,7 +334,6 @@
         pts.forEach(p => p.update()); requestAnimationFrame(animate);
     }
 
-    // --- 数据持久化 ---
     function checkUnlock() { if(prompt("Pass:") === "li123") { isAdmin = true; document.getElementById('adminControls').style.display = 'flex'; document.getElementById('adminInfo').innerText = "ADMIN ACTIVE"; if(currentLvl === 3) document.getElementById('addProjBtn').style.display = 'block'; showLevel(currentLvl, currentCat); }}
     function syncFromCloud() { db.ref('portfolio_data').once('value').then(snap => { if(snap.exists()) { const data = snap.val(); Object.keys(portfolio).forEach(cat => { portfolio[cat].projects.forEach(p => { if(data[p.id]) { p.title = data[p.id].title || p.title; p.layout = data[p.id].layout || []; } }); }); } }); }
     function loadBoard() { vp.innerHTML = ''; if (!currentProj.layout) return; currentProj.layout.forEach(it => { const d = document.createElement('div'); d.className = 'miro-item'; d.style.cssText = `left:${it.x}; top:${it.y}; width:${it.w}; position:absolute;`; d.innerHTML = (it.html || '') + '<div class="resizer"></div>'; vp.appendChild(d); }); }
