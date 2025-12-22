@@ -223,9 +223,25 @@
 
     function enterProject(id) { currentProj = portfolio[currentCat].projects.find(p => p.id === id); showLevel(4); }
 
-    // --- 4. MIRO 引擎 ---
+    // --- 4. MIRO 引擎 ---//
     const vp = document.getElementById('miro-viewport');
     const bd = document.getElementById('lvl4');
+
+    // 监听键盘删除事件
+    window.addEventListener('keydown', (e) => {
+        if (currentLvl === 4 && (e.key === 'Delete' || e.key === 'Backspace')) {
+            // 如果是在编辑标题，则不触发删除图片
+            if (document.activeElement.id === 'lvl4Title') return;
+            
+            if (selectedItem && isAdmin) {
+                if (confirm('Delete this item?')) {
+                    selectedItem.remove();
+                    selectedItem = null;
+                    saveToCloud(); // 删除后自动同步到云端
+                }
+            }
+        }
+    });
 
     bd.addEventListener('touchstart', e => { if(e.touches.length === 1) handleStart(e.touches[0].clientX, e.touches[0].clientY, e.target); });
     bd.onmousedown = (e) => handleStart(e.clientX, e.clientY, e.target);
@@ -233,12 +249,32 @@
     function handleStart(x, y, target) {
         if(currentLvl !== 4) return;
         const item = target.closest('.miro-item');
+        
+        // 清除旧的选择状态
         if(selectedItem) selectedItem.classList.remove('selected');
+        
         if(item) {
-            selectedItem = item; item.classList.add('selected'); vp.appendChild(item);
-            if(target.classList.contains('resizer')) { isResizing = true; startX = x; startW = item.offsetWidth; }
-            else { isDragging = true; dragTarget = item; startX = (x/zoom)-item.offsetLeft; startY = (y/zoom)-item.offsetTop; }
-        } else { isPanning = true; startX = x - panX; startY = y - panY; }
+            selectedItem = item; 
+            item.classList.add('selected'); 
+            vp.appendChild(item); // 置顶显示
+            
+            if(target.classList.contains('resizer')) { 
+                isResizing = true; 
+                startX = x; 
+                startW = item.offsetWidth; 
+            } else { 
+                isDragging = true; 
+                dragTarget = item; 
+                startX = (x/zoom)-item.offsetLeft; 
+                startY = (y/zoom)-item.offsetTop; 
+            }
+        } else { 
+            // 点击空白处，取消选中
+            selectedItem = null;
+            isPanning = true; 
+            startX = x - panX; 
+            startY = y - panY; 
+        }
     }
 
     window.onmousemove = (e) => handleMove(e.clientX, e.clientY);
@@ -246,32 +282,11 @@
 
     function handleMove(x, y) {
         if(isPanning) { panX = x - startX; panY = y - startY; updateViewport(); }
-        else if(isResizing) { selectedItem.style.width = (startW + (x - startX) / zoom) + 'px'; }
-        else if(isDragging) { dragTarget.style.left = (x/zoom-startX)+'px'; dragTarget.style.top = (y/zoom-startY)+'px'; }
+        else if(isResizing && selectedItem) { selectedItem.style.width = (startW + (x - startX) / zoom) + 'px'; }
+        else if(isDragging && dragTarget) { dragTarget.style.left = (x/zoom-startX)+'px'; dragTarget.style.top = (y/zoom-startY)+'px'; }
     }
     window.onmouseup = window.ontouchend = () => isPanning = isDragging = isResizing = false;
-    bd.addEventListener('wheel', e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; zoom = Math.min(Math.max(zoom * d, 0.1), 5); updateViewport(); }, {passive:false});
-    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
-    function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
-
-    function loadBoard() {
-        vp.innerHTML = '';
-        (currentProj.layout || []).forEach(it => {
-            const d = document.createElement('div'); d.className = 'miro-item'; d.style.left = it.x; d.style.top = it.y; d.style.width = it.w;
-            d.innerHTML = `<img src="${it.src}"><div class="resizer"></div>`; vp.appendChild(d);
-        });
-    }
-
-    function handleUpload(event) {
-        const file = event.target.files[0]; if(!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const div = document.createElement('div'); div.className = 'miro-item'; div.style.width = '300px';
-            div.style.left = (window.innerWidth/2-panX)/zoom+'px'; div.style.top = (window.innerHeight/2-panY)/zoom+'px';
-            div.innerHTML = `<img src="${e.target.result}"><div class="resizer"></div>`; vp.appendChild(div);
-        }; reader.readAsDataURL(file);
-    }
-
+    
     // --- 5. 粒子系统 (优化版) ---
     const cvs = document.getElementById('particleCanvas'); const ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
@@ -300,4 +315,5 @@
 </script>
 </body>
 </html>
+
 
