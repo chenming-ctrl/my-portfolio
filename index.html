@@ -33,7 +33,6 @@
         .neural-grid { display: flex; gap: 60px; justify-content: center; align-items: center; width: 95%; flex-wrap: wrap; padding: 20px; }
         .stack-container { position: relative; width: 160px; height: 220px; cursor: pointer; text-align: center; perspective: 1000px; }
         
-        /* --- 新增：删除项目按钮样式 --- */
         .del-proj-btn { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; background: #ff4d4d; color: #fff; border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; border: 2px solid #fff; opacity: 0; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .stack-container:hover .del-proj-btn { opacity: 1; }
 
@@ -127,7 +126,6 @@
     const vp = document.getElementById('miro-viewport');
     const bd = document.getElementById('lvl4');
 
-    // --- 新增：创建项目逻辑 ---
     function createNewProject() {
         if (!isAdmin || !currentCat) return;
         const existingNumbers = portfolio[currentCat].projects.map(p => {
@@ -145,34 +143,21 @@
         renderProjGrid();
     }
 
-    // --- 新增：删除项目逻辑 ---
     function deleteProject(id, event) {
-        event.stopPropagation(); // 阻止进入项目详情页
+        event.stopPropagation();
         if (!isAdmin) return;
-
         const projIndex = portfolio[currentCat].projects.findIndex(p => p.id === id);
         const proj = portfolio[currentCat].projects[projIndex];
-        
-        // 检查 layout 数组是否为空（对应没有图片和文字）
         const isEmpty = !proj.layout || proj.layout.length === 0;
-
         if (!isEmpty) {
             const confirmName = prompt(`该项目包含内容，请输入项目名称 "${proj.title}" 以确认删除:`);
-            if (confirmName !== proj.title) {
-                alert("确认失败：输入的项目名称不匹配。");
-                return;
-            }
+            if (confirmName !== proj.title) { alert("确认失败：输入的项目名称不匹配。"); return; }
         }
-
-        // 本地删除
         portfolio[currentCat].projects.splice(projIndex, 1);
-        // 数据库删除
         db.ref('portfolio_data/' + id).remove();
-        // 刷新列表
         renderProjGrid();
     }
 
-    // --- 全局按键与上传 ---
     window.onkeydown = (e) => {
         if (!isAdmin) return;
         if (e.key === "Delete" || e.key === "Backspace") {
@@ -232,7 +217,6 @@
         return d;
     }
 
-    // --- 网格渲染 ---
     function getProjImages(p) {
         if(!p.layout) return [];
         return p.layout.filter(it => it.html && it.html.includes('<img')).reverse().slice(0, 3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
@@ -266,34 +250,37 @@
         }).join('');
     }
 
-    // --- 页面切换逻辑 ---
     function handleBack() {
         if (currentLvl === 4) { if(isAdmin) saveToCloud(true); showLevel(3, currentCat); }
         else if (currentLvl === 3) showLevel(2);
         else if (currentLvl === 2) showLevel(1);
     }
 
+    // --- 修改点：增加 async/await 确保数据同步后渲染 ---
     async function showLevel(lvl, cat = '') {
         currentLvl = lvl; if(cat) currentCat = cat;
         document.querySelectorAll('.view-layer').forEach(el => el.classList.remove('active'));
         document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
         document.getElementById('addProjBtn').style.display = (lvl === 3 && isAdmin) ? 'block' : 'none';
+        
+        // 关键：切换页面前先强制同步云端数据
+        await syncFromCloud();
+
         if(lvl === 2) renderCatGrid();
         if(lvl === 3) renderProjGrid();
         if(lvl === 4) { 
             document.getElementById('lvl4Title').innerText = currentProj.title;
             document.getElementById('lvl4Title').contentEditable = isAdmin;
             document.getElementById('lvl4CatTag').innerText = currentCat;
-            loadBoard(); resetViewport(); 
+            loadBoard();
+            resetViewport(); 
         }
         document.getElementById('lvl' + lvl).classList.add('active');
         document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
         document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
         document.getElementById('backBtnContainer').classList.toggle('show', lvl > 1);
-        syncFromCloud();
     }
 
-    // --- 交互系统 ---
     bd.onmousedown = (e) => {
         if(currentLvl !== 4 || e.target.contentEditable === "true") return;
         const item = e.target.closest('.miro-item');
@@ -312,7 +299,6 @@
     };
     window.onmouseup = () => isPanning = isDragging = isResizing = false;
 
-    // --- 粒子系统 ---
     const cvs = document.getElementById('particleCanvas'); const ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
@@ -335,14 +321,34 @@
     }
 
     function checkUnlock() { if(prompt("Pass:") === "li123") { isAdmin = true; document.getElementById('adminControls').style.display = 'flex'; document.getElementById('adminInfo').innerText = "ADMIN ACTIVE"; if(currentLvl === 3) document.getElementById('addProjBtn').style.display = 'block'; showLevel(currentLvl, currentCat); }}
-    function syncFromCloud() { db.ref('portfolio_data').once('value').then(snap => { if(snap.exists()) { const data = snap.val(); Object.keys(portfolio).forEach(cat => { portfolio[cat].projects.forEach(p => { if(data[p.id]) { p.title = data[p.id].title || p.title; p.layout = data[p.id].layout || []; } }); }); } }); }
+    
+    // --- 修改点：加上 return 使其支持 await，并确同步当前 project 的 layout ---
+    function syncFromCloud() { 
+        return db.ref('portfolio_data').once('value').then(snap => {
+            if(snap.exists()) {
+                const data = snap.val();
+                Object.keys(portfolio).forEach(cat => {
+                    portfolio[cat].projects.forEach(p => {
+                        if(data[p.id]) {
+                            p.title = data[p.id].title || p.title;
+                            p.layout = data[p.id].layout || [];
+                        } 
+                    }); 
+                }); 
+                if(currentProj && data[currentProj.id]) {
+                    currentProj.layout = data[currentProj.id].layout || [];
+                }
+            } 
+        }); 
+    }
+
     function loadBoard() { vp.innerHTML = ''; if (!currentProj.layout) return; currentProj.layout.forEach(it => { const d = document.createElement('div'); d.className = 'miro-item'; d.style.cssText = `left:${it.x}; top:${it.y}; width:${it.w}; position:absolute;`; d.innerHTML = (it.html || '') + '<div class="resizer"></div>'; vp.appendChild(d); }); }
     async function saveToCloud(silent = false) { if(!isAdmin || !currentProj) return; const status = document.getElementById('save-status'); if(!silent) status.innerText = "Saving..."; const items = Array.from(vp.children).map(el => ({ html: el.innerHTML.replace('<div class="resizer"></div>', ''), x: el.style.left, y: el.style.top, w: el.style.width })); await db.ref('portfolio_data/' + currentProj.id).update({ title: document.getElementById('lvl4Title').innerText, layout: items }); if(!silent) status.innerText = "Saved"; }
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
     function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
     bd.addEventListener('wheel', e => { e.preventDefault(); const d = e.deltaY > 0 ? 0.9 : 1.1; zoom = Math.min(Math.max(zoom * d, 0.1), 5); updateViewport(); }, {passive:false});
 
-    window.onload = () => { init(); animate(); syncFromCloud(); };
+    window.onload = () => { init(); animate(); syncFromCloud().then(() => { /* 初始同步 */ }); };
     window.onresize = init;
     document.getElementById('dynamicNav').innerHTML = Object.keys(portfolio).map(cat => `<a onclick="showLevel(3, '${cat}')">${cat}</a>`).join('');
 </script>
