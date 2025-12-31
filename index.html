@@ -129,7 +129,6 @@
 
     function updateStep(msg) { const t = document.querySelector('#loading-screen p'); if(t) t.innerText = msg; }
 
-    // --- 修复点：移除争议 Header，改用时间戳参数 ---
     async function fetchFromGithub() {
         updateStep("1/3: SYNCING DATABASE...");
         const url = `https://api.github.com/repos/${GH_CONFIG.owner}/${GH_CONFIG.repo}/contents/${GH_CONFIG.path}?t=${Date.now()}`;
@@ -172,7 +171,7 @@
         if(currentLvl === 3) renderProjGrid();
     }
 
-    // --- 修复点：移除争议 Header，确保 CORS 兼容性 ---
+    // --- 核心修复：引入 TextEncoder 解决 400 Bad Request ---
     async function saveToCloud(silent = false) {
         if(!isAdmin || !GH_CONFIG.token) return;
         const status = document.getElementById('save-status');
@@ -196,13 +195,12 @@
         
         try {
             if(!silent) status.innerText = "VERIFYING...";
-            const getRes = await fetch(url + `?t=${Date.now()}`, { 
+            const getRes = await fetch(`${url}?t=${Date.now()}`, { 
                 headers: { 
                     'Authorization': `token ${GH_CONFIG.token}`,
                     'Accept': 'application/vnd.github.v3+json'
-                },
-                mode: 'cors'
-            }).catch(() => { throw new Error("NETWORK_ISSUE"); });
+                }
+            });
 
             let sha = null;
             if (getRes.ok) {
@@ -212,8 +210,14 @@
                 throw new Error("AUTH_FAILED");
             }
 
+            if(!silent) status.innerText = "ENCODING...";
+            
+            // 健壮编码处理：使用 TextEncoder 解决特殊字符导致的 400 错误
+            const jsonStr = JSON.stringify(portfolio_raw_data, null, 2);
+            const utf8Bytes = new TextEncoder().encode(jsonStr);
+            const base64Content = btoa(String.fromCharCode(...utf8Bytes));
+
             if(!silent) status.innerText = "PUSHING...";
-            const content = btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_raw_data, null, 2))));
             const putRes = await fetch(url, {
                 method: 'PUT',
                 headers: { 
@@ -221,8 +225,11 @@
                     'Content-Type': 'application/json',
                     'Accept': 'application/vnd.github.v3+json'
                 },
-                body: JSON.stringify({ message: "Cloud Sync Update", content, sha }),
-                mode: 'cors'
+                body: JSON.stringify({ 
+                    message: "Cloud Sync: Update Content", 
+                    content: base64Content, 
+                    sha: sha 
+                })
             });
 
             if(putRes.ok) {
@@ -232,10 +239,10 @@
                 throw new Error(errData.message || "UPLOAD_FAILED");
             }
         } catch (err) {
+            console.error("Save failed:", err);
             status.innerText = "FAILED";
             let msg = "CRITICAL ERROR: ";
-            if(err.message === "NETWORK_ISSUE") msg += "无法连接 GitHub 接口。请检查 VPN 是否开启全局模式或网络拦截。";
-            else if(err.message === "AUTH_FAILED") msg += "Token 验证失败。请重新登录并粘贴正确的 Token。";
+            if(err.message === "AUTH_FAILED") msg += "Token 验证失败。";
             else msg += err.message;
             alert(msg);
         }
