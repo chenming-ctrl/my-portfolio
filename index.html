@@ -51,10 +51,9 @@
 
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 7000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 10px 20px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; }
-        #save-status { font-size: 0.5rem; font-weight: bold; text-transform: uppercase; opacity: 0; transition: 0.3s; }
+        #save-status { font-size: 0.6rem; font-weight: bold; text-transform: uppercase; opacity: 0; transition: 0.3s; color: #4285F4; }
         #save-status.active { opacity: 1; }
 
-        /* 全局管理员按钮 */
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 1.5px; text-transform: uppercase; background: rgba(255,255,255,0.8); padding: 5px 10px; border-radius: 4px; }
         .admin-lock:hover { color: #000; }
 
@@ -67,7 +66,7 @@
 
 <div id="loading-screen">
     <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
-    <p style="font-size: 0.4rem; letter-spacing: 2px; margin-top: 15px; color: #aaa;">CONNECTING TO GITHUB...</p>
+    <p style="font-size: 0.45rem; letter-spacing: 2px; margin-top: 15px; color: #aaa; text-transform: uppercase;">Initializing Sync...</p>
 </div>
 
 <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN</div>
@@ -108,7 +107,7 @@
 
 <script>
     const GH_CONFIG = {
-        get token() { return localStorage.getItem('gh_token') || ''; },
+        get token() { return (localStorage.getItem('gh_token') || '').trim(); },
         owner: 'chenming-ctrl',
         repo: 'my-portfolio-data',
         path: 'portfolio_data.json'
@@ -124,22 +123,39 @@
     };
 
     let isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
-    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, selectedItems = [];
+    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
     let dragTarget = null, startX, startY, startW, startH;
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
 
+    function updateStep(msg) { const t = document.querySelector('#loading-screen p'); if(t) t.innerText = msg; }
+
     async function fetchFromGithub() {
-        const url = `https://api.github.com/repos/${GH_CONFIG.owner}/${GH_CONFIG.repo}/contents/${GH_CONFIG.path}`;
+        updateStep("1/3: SYNCING DATABASE...");
+        const url = `https://api.github.com/repos/${GH_CONFIG.owner}/${GH_CONFIG.repo}/contents/${GH_CONFIG.path}?t=${Date.now()}`;
         try {
             const res = await fetch(url, { 
-                headers: GH_CONFIG.token ? { 'Authorization': `token ${GH_CONFIG.token}`, 'Cache-Control': 'no-cache' } : { 'Cache-Control': 'no-cache' }
+                headers: { 
+                    'Authorization': GH_CONFIG.token ? `token ${GH_CONFIG.token}` : undefined,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Cache-Control': 'no-cache'
+                },
+                mode: 'cors'
             });
             if (res.ok) {
                 const data = await res.json();
                 portfolio_raw_data = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+                updateStep("2/3: DATA RECEIVED...");
+            } else { 
+                updateStep("2/3: INITIALIZING...");
+                portfolio_raw_data = {}; 
             }
-        } catch (e) { console.log("Init fresh data"); }
-        syncToLocalModel();
+        } catch (e) { 
+            updateStep("OFFLINE MODE...");
+            portfolio_raw_data = {}; 
+        } finally {
+            updateStep("3/3: READY.");
+            syncToLocalModel();
+        }
     }
 
     function syncToLocalModel() {
@@ -158,64 +174,162 @@
     async function saveToCloud(silent = false) {
         if(!isAdmin || !GH_CONFIG.token) return;
         const status = document.getElementById('save-status');
-        if(!silent) { status.innerText = "SYNCING..."; status.classList.add('active'); }
+        if(!silent) { status.innerText = "CONNECTING..."; status.classList.add('active'); }
 
         const items = Array.from(vp.children).map(el => ({ 
-            html: el.innerHTML.replace('<div class="resizer"></div>', ''), 
+            html: el.innerHTML.replace(/<div class="resizer".*?><\/div>/g, ''), 
             x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height
         }));
-        const thumbs = items.filter(it => it.html.includes('<img')).slice(0, 3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
+
+        if(currentProj) {
+            const titleEl = document.getElementById('lvl4Title');
+            portfolio_raw_data[currentProj.id] = {
+                title: titleEl ? titleEl.innerText : currentProj.title,
+                layout: items,
+                thumbs: items.filter(it => it.html.includes('<img')).slice(0, 3).map(it => it.html.match(/src="([^"]+)"/)?.[1])
+            };
+        }
 
         const url = `https://api.github.com/repos/${GH_CONFIG.owner}/${GH_CONFIG.repo}/contents/${GH_CONFIG.path}`;
+        
         try {
-            const getRes = await fetch(url, { headers: { 'Authorization': `token ${GH_CONFIG.token}` } });
-            let sha = getRes.ok ? (await getRes.json()).sha : null;
-            
-            if(currentProj) {
-                portfolio_raw_data[currentProj.id] = {
-                    title: document.getElementById('lvl4Title').innerText,
-                    layout: items,
-                    thumbs: thumbs
-                };
+            if(!silent) status.innerText = "VERIFYING...";
+            const getRes = await fetch(url + `?t=${Date.now()}`, { 
+                headers: { 
+                    'Authorization': `token ${GH_CONFIG.token}`,
+                    'Cache-Control': 'no-cache',
+                    'Accept': 'application/vnd.github.v3+json'
+                },
+                mode: 'cors'
+            }).catch(() => { throw new Error("NETWORK_ISSUE"); });
+
+            let sha = null;
+            if (getRes.ok) {
+                const fileData = await getRes.json();
+                sha = fileData.sha;
+            } else if (getRes.status === 401 || getRes.status === 403) {
+                throw new Error("AUTH_FAILED");
+            } else if (getRes.status === 404) {
+                sha = null; 
             }
+
+            if(!silent) status.innerText = "PUSHING...";
             const content = btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_raw_data, null, 2))));
             const putRes = await fetch(url, {
                 method: 'PUT',
-                headers: { 'Authorization': `token ${GH_CONFIG.token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: "Update Portfolio", content, sha })
+                headers: { 
+                    'Authorization': `token ${GH_CONFIG.token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github.v3+json'
+                },
+                body: JSON.stringify({ message: "Cloud Sync Update", content, sha }),
+                mode: 'cors'
             });
-            if(putRes.ok && !silent) { status.innerText = "PUSHED ✓"; setTimeout(() => status.classList.remove('active'), 1500); }
-        } catch (err) { alert("Git Error: " + err); }
+
+            if(putRes.ok) {
+                if(!silent) { status.innerText = "SAVED ✓"; setTimeout(() => status.classList.remove('active'), 1500); }
+            } else {
+                const errData = await putRes.json();
+                throw new Error(errData.message || "UPLOAD_FAILED");
+            }
+        } catch (err) {
+            status.innerText = "FAILED";
+            let msg = "CRITICAL ERROR: ";
+            if(err.message === "NETWORK_ISSUE") msg += "无法连接 GitHub 接口。请确认你的 VPN 是否开启了“全局模式”。";
+            else if(err.message === "AUTH_FAILED") msg += "Token 无效或权限不足（私有库必须勾选 repo 权限）。请重新登录。";
+            else msg += err.message;
+            alert(msg);
+            throw err;
+        }
     }
 
-    function checkUnlock() {
-        if(isAdmin) {
-            if(confirm("Logout?")) { localStorage.removeItem('gh_token'); location.reload(); }
-            return;
-        }
-        if(prompt("Password:") === "li123") {
-            let token = localStorage.getItem('gh_token');
-            if(!token) token = prompt("Enter GitHub Token (ghp_...):");
-            if(token) {
-                localStorage.setItem('gh_token', token);
-                isAdmin = true;
-                document.getElementById('adminControls').style.display = 'flex';
-                document.getElementById('adminInfo').innerText = "ADMIN ACTIVE";
-                showLevel(currentLvl, currentCat);
-            }
+    async function createNewProject() {
+        const n = prompt("Project Name:");
+        if(!n) return;
+        const id = currentCat[0].toLowerCase() + Date.now();
+        const backup = JSON.stringify(portfolio_raw_data);
+        portfolio_raw_data[id] = { title: n, layout: [], thumbs: [] };
+        try {
+            await saveToCloud(false);
+            syncToLocalModel();
+        } catch (e) {
+            portfolio_raw_data = JSON.parse(backup);
         }
     }
+
+    // --- 核心修复：持久化登录与诊断反馈 ---
+    function checkUnlock() {
+        if (isAdmin) {
+            if (confirm("Logout: Clear session and sensitive Token?")) {
+                localStorage.removeItem('gh_token');
+                localStorage.removeItem('is_admin_session'); 
+                location.reload();
+            }
+            return;
+        }
+
+        const pass = prompt("ADMIN PASSWORD:");
+        if (pass === null) return; 
+
+        if (pass === "li123") {
+            let token = localStorage.getItem('gh_token');
+            if (!token || confirm("Admin authenticated. Would you like to UPDATE or Re-enter Token?")) {
+                const newToken = prompt("PLEASE ENTER GITHUB TOKEN (Must start with ghp_):");
+                if (!newToken) {
+                    alert("LOGIN FAILED: Token cannot be empty.");
+                    return;
+                }
+                if (!newToken.trim().startsWith('ghp_')) {
+                    alert("FORMAT ERROR: The token must start with 'ghp_'.");
+                    return;
+                }
+                localStorage.setItem('gh_token', newToken.trim());
+                token = newToken.trim();
+            }
+
+            if (token) {
+                isAdmin = true;
+                localStorage.setItem('is_admin_session', 'true'); 
+                document.getElementById('adminControls').style.display = 'flex';
+                document.getElementById('adminInfo').innerText = "ADMIN ACTIVE (LOGOUT)";
+                document.getElementById('adminInfo').style.color = "#34A853";
+                showLevel(currentLvl, currentCat);
+                alert("ADMIN ACCESS GRANTED ✓");
+            }
+        } else {
+            alert("ACCESS DENIED: Incorrect Password.");
+        }
+    }
+
+    function autoRestoreSession() {
+        if (localStorage.getItem('gh_token') && localStorage.getItem('is_admin_session') === 'true') {
+            isAdmin = true;
+            document.getElementById('adminControls').style.display = 'flex';
+            document.getElementById('adminInfo').innerText = "ADMIN ACTIVE (LOGOUT)";
+            document.getElementById('adminInfo').style.color = "#34A853";
+        }
+    }
+
+    const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
+    let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0 };
+    window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
+
+    class Particle {
+        constructor() { this.x = Math.random() * cvs.width; this.y = Math.random() * cvs.height; this.baseSize = Math.random() * 2 + 1; this.size = this.baseSize; this.vx = (Math.random() - 0.5) * 0.4; this.vy = (Math.random() - 0.5) * 0.4; }
+        update() { this.x += this.vx; this.y += this.vy; if (this.x < 0 || this.x > cvs.width) this.vx *= -1; if (this.y < 0 || this.y > cvs.height) this.vy *= -1; let dx = m.smX - this.x, dy = m.smY - this.y; let dist = Math.sqrt(dx*dx + dy*dy); if (dist < 150) { this.size = this.baseSize + (150 - dist) * 0.15; } else { this.size += (this.baseSize - this.size) * 0.1; } }
+        draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fillStyle = (currentLvl > 1) ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.15)"; ctx.fill(); }
+    }
+    function init() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; pts = Array.from({length: 100}, () => new Particle()); }
+    function animate() { ctx.clearRect(0, 0, cvs.width, cvs.height); m.smX += (m.x - m.smX) * 0.1; m.smY += (m.y - m.smY) * 0.1; pts.forEach(p => { p.update(); p.draw(); }); requestAnimationFrame(animate); }
 
     function showLevel(lvl, cat = '') {
         currentLvl = lvl; if(cat) currentCat = cat;
         document.querySelectorAll('.view-layer').forEach(el => el.classList.remove('active'));
         document.getElementById('lvl' + lvl).classList.add('active');
         document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
-        
         if(lvl === 2) renderCatGrid();
         if(lvl === 3) renderProjGrid();
         if(lvl === 4) { vp.innerHTML = ''; loadBoard(); resetViewport(); document.getElementById('lvl4Title').innerText = currentProj.title; }
-
         document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
         document.getElementById('backBtnContainer').classList.toggle('show', lvl > 1);
         document.getElementById('addProjBtn').style.display = (lvl === 3 && isAdmin) ? 'block' : 'none';
@@ -225,9 +339,7 @@
         document.getElementById('catGrid').innerHTML = Object.keys(portfolio).map(cat => {
             const p = portfolio[cat].projects[0];
             const t = (p && p.thumbs && p.thumbs[0]) ? p.thumbs[0] : portfolio[cat].thumb;
-            return `<div class="stack-container" onclick="showLevel(3, '${cat}')">
-                <div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1"><img src="${t}"></div></div>
-                <div class="stack-label" style="margin-top:20px; font-size:0.5rem; letter-spacing:2px; color:#bbb;">${cat}</div></div>`;
+            return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1"><img src="${t}"></div></div><div class="stack-label" style="margin-top:20px; font-size:0.5rem; letter-spacing:2px; color:#bbb;">${cat}</div></div>`;
         }).join('');
     }
 
@@ -235,39 +347,12 @@
         const projs = portfolio[currentCat].projects || [];
         document.getElementById('projGrid').innerHTML = projs.map(p => {
             const t = p.thumbs || [];
-            return `<div class="stack-container" onclick="openProject('${p.id}')">
-                ${isAdmin ? `<div class="del-proj-btn" onclick="deleteProject('${p.id}', event)">✕</div>` : ''}
-                <div class="neural-stack">
-                    <div class="neural-layer layer-3">${t[2] ? `<img src="${t[2]}">` : ''}</div>
-                    <div class="neural-layer layer-2">${t[1] ? `<img src="${t[1]}">` : ''}</div>
-                    <div class="neural-layer layer-1">${t[0] ? `<img src="${t[0]}">` : ''}</div>
-                </div><div class="stack-label" style="margin-top:20px; font-size:0.5rem; letter-spacing:2px; color:#666;">${p.title}</div></div>`;
+            return `<div class="stack-container" onclick="openProject('${p.id}')">${isAdmin ? `<div class="del-proj-btn" onclick="deleteProject('${p.id}', event)">✕</div>` : ''}<div class="neural-stack"><div class="neural-layer layer-3">${t[2] ? `<img src="${t[2]}">` : ''}</div><div class="neural-layer layer-2">${t[1] ? `<img src="${t[1]}">` : ''}</div><div class="neural-layer layer-1">${t[0] ? `<img src="${t[0]}">` : ''}</div></div><div class="stack-label" style="margin-top:20px; font-size:0.5rem; letter-spacing:2px; color:#666;">${p.title}</div></div>`;
         }).join('');
     }
 
-    function createNewProject() {
-        const n = prompt("Project Name:");
-        if(n) {
-            const id = currentCat[0].toLowerCase() + Date.now();
-            portfolio_raw_data[id] = { title: n, layout: [], thumbs: [] };
-            saveToCloud(false).then(() => syncToLocalModel());
-        }
-    }
-
-    function deleteProject(id, e) {
-        e.stopPropagation();
-        if(confirm("Delete this project?")) {
-            delete portfolio_raw_data[id];
-            saveToCloud(false).then(() => syncToLocalModel());
-        }
-    }
-
-    function openProject(id) {
-        currentProj = portfolio[currentCat].projects.find(p => p.id === id);
-        showLevel(4);
-    }
-
-    // --- 核心交互逻辑 (Miro-style) ---
+    function deleteProject(id, e) { e.stopPropagation(); if(confirm("Delete?")) { delete portfolio_raw_data[id]; saveToCloud(false).then(() => syncToLocalModel()); } }
+    function openProject(id) { currentProj = portfolio[currentCat].projects.find(p => p.id === id); showLevel(4); }
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
     function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
     bd.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.min(Math.max(zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.1), 3); updateViewport(); }, {passive:false});
@@ -276,55 +361,25 @@
         if(currentLvl !== 4) return;
         const item = e.target.closest('.miro-item');
         if (e.button === 1 || (!item && e.button === 0)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; return; }
-        if(item && isAdmin) {
-            isDragging = true; dragTarget = item; vp.appendChild(item);
-            startX = (e.clientX/zoom) - item.offsetLeft; startY = (e.clientY/zoom) - item.offsetTop;
-            if(e.target.classList.contains('resizer')) { isResizing = true; isDragging = false; startX = e.clientX; startY = e.clientY; startW = item.offsetWidth; startH = item.offsetHeight; }
-        }
+        if(item && isAdmin) { isDragging = true; dragTarget = item; vp.appendChild(item); startX = (e.clientX/zoom) - item.offsetLeft; startY = (e.clientY/zoom) - item.offsetTop; if(e.target.classList.contains('resizer')) { isResizing = true; isDragging = false; startX = e.clientX; startY = e.clientY; startW = item.offsetWidth; startH = item.offsetHeight; } }
     };
 
-    window.onmousemove = (e) => {
-        if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
-        else if(isDragging) { dragTarget.style.left = (e.clientX/zoom - startX) + 'px'; dragTarget.style.top = (e.clientY/zoom - startY) + 'px'; }
-        else if(isResizing) { dragTarget.style.width = startW + (e.clientX - startX)/zoom + 'px'; dragTarget.style.height = startH + (e.clientY - startY)/zoom + 'px'; }
-    };
-
+    window.onmousemove = (e) => { if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); } else if(isDragging) { dragTarget.style.left = (e.clientX/zoom - startX) + 'px'; dragTarget.style.top = (e.clientY/zoom - startY) + 'px'; } else if(isResizing) { dragTarget.style.width = startW + (e.clientX - startX)/zoom + 'px'; dragTarget.style.height = startH + (e.clientY - startY)/zoom + 'px'; } };
     window.onmouseup = () => { if(isDragging || isResizing) saveToCloud(true); isPanning = isDragging = isResizing = false; };
 
-    function createMiroItem(html, x, y, w = "300px") {
-        const d = document.createElement('div'); d.className = 'miro-item'; 
-        d.style.cssText = `left:${x}; top:${y}; width:${w}; position:absolute;`;
-        d.innerHTML = `${html}<div class="resizer" style="width:10px; height:10px; background:#4285F4; position:absolute; right:0; bottom:0; cursor:nwse-resize;"></div>`;
-        vp.appendChild(d);
-    }
-
+    function createMiroItem(html, x, y, w = "300px") { const d = document.createElement('div'); d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; position:absolute;`; d.innerHTML = `${html}<div class="resizer" style="width:10px; height:10px; background:#4285F4; position:absolute; right:0; bottom:0; cursor:nwse-resize;"></div>`; vp.appendChild(d); }
     function addText() { createMiroItem(`<div contenteditable="true" style="padding:10px; outline:none; font-size:1rem;">New Text</div>`, "100px", "100px", "200px"); }
-    function handleUpload(e) { 
-        Array.from(e.target.files).forEach(file => {
-            const r = new FileReader();
-            r.onload = (ev) => createMiroItem(`<img src="${ev.target.result}" style="width:100%;">`, "100px", "100px");
-            r.readAsDataURL(file);
-        });
-    }
+    function handleUpload(e) { Array.from(e.target.files).forEach(file => { const r = new FileReader(); r.onload = (ev) => createMiroItem(`<img src="${ev.target.result}" style="width:100%;">`, "100px", "100px"); r.readAsDataURL(file); }); }
     function handleDrop(e) { e.preventDefault(); if(isAdmin) handleUpload({target: {files: e.dataTransfer.files}}); }
     function loadBoard() { (currentProj.layout || []).forEach(it => createMiroItem(it.html, it.x, it.y, it.w)); }
     function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
 
-    // --- 粒子系统 ---
-    const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
-    let pts = [];
-    function init() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; pts = Array.from({length: 80}, () => ({x:Math.random()*cvs.width, y:Math.random()*cvs.height, v:{x:(Math.random()-0.5)*0.5, y:(Math.random()-0.5)*0.5}})); }
-    function animate() {
-        ctx.clearRect(0,0,cvs.width,cvs.height);
-        ctx.fillStyle = "#eee";
-        pts.forEach(p => { 
-            p.x+=p.v.x; p.y+=p.v.y; if(p.x<0||p.x>cvs.width) p.v.x*=-1; if(p.y<0||p.y>cvs.height) p.v.y*=-1;
-            ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
-        });
-        requestAnimationFrame(animate);
-    }
-
-    window.onload = () => { init(); animate(); fetchFromGithub(); };
+    window.onload = () => { 
+        init(); 
+        animate(); 
+        autoRestoreSession(); // 页面加载自动恢复登录
+        fetchFromGithub(); 
+    };
     window.onresize = init;
     document.getElementById('dynamicNav').innerHTML = Object.keys(portfolio).map(cat => `<a onclick="showLevel(3, '${cat}')">${cat}</a>`).join('');
 </script>
