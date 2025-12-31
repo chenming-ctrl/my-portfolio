@@ -37,14 +37,12 @@
         .stack-container:hover .layer-1 { transform: translate(-15px, 15px) rotate(-3deg); box-shadow: 15px 15px 30px rgba(0,0,0,0.1); }
         .stack-label { margin-top: 35px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; }
 
-        /* 四级画布样式 */
         #lvl4 { background: #fbfbfb; z-index: 6000; display: none; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
         .miro-item { position: absolute; background: white; box-shadow: 0 5px 15px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; -webkit-user-drag: none; }
         .miro-item.selected { outline: 2px solid #4285F4; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
         
-        /* 缩放手柄：仅在选中时显示 */
         .resizer { width: 10px; height: 10px; background: #4285F4; position: absolute; right: 0; bottom: 0; cursor: nwse-resize; opacity: 0; transition: 0.2s; }
         .miro-item.selected .resizer { opacity: 1; }
 
@@ -112,42 +110,54 @@
 
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
 
+    // --- 系统核心：数据初始化（访客/管理员通用） ---
+    async function initSystem() {
+        const bar = document.getElementById('loading-bar');
+        if(bar) bar.style.width = "40%";
+        try {
+            const headers = {};
+            if (CONFIG.token) headers['Authorization'] = `token ${CONFIG.token}`;
+            
+            const res = await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`, {
+                headers: headers, cache: 'no-store'
+            });
+            if (res.ok) {
+                const json = await res.json();
+                const content = json.content.replace(/\s/g, '');
+                portfolio_data = JSON.parse(decodeURIComponent(escape(atob(content))));
+                // 数据加载后，尝试渲染当前可能存在的视图
+                if(currentLvl === 2) renderCatGrid();
+            }
+        } catch (e) { console.error("Init Error:", e); }
+        finally {
+            if(bar) bar.style.width = "100%";
+            setTimeout(() => {
+                const screen = document.getElementById('loading-screen');
+                if(screen) screen.style.opacity = "0";
+                setTimeout(() => { if(screen) screen.style.display = "none"; showLevel(1); }, 500);
+            }, 300);
+        }
+    }
+
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
         const files = e.target ? e.target.files : e;
         const dropX = (e.clientX !== undefined) ? (e.clientX - panX) / zoom : 100;
         const dropY = (e.clientY !== undefined) ? (e.clientY - panY) / zoom : 100;
-
         for (const file of files) {
-            // 立即创建占位符：20%透明度，带进度标签，此时已经可以移动
-            const placeholder = createMiroItem(
-                `<div class="upload-wrapper" style="opacity:0.3;">
-                    <div class="pct-tag">0%</div>
-                    <div style="font-size:9px; color:#999;">UPLOADING...</div>
-                </div>`, `${dropX}px`, `${dropY}px`
-            );
-            
+            const placeholder = createMiroItem(`<div class="upload-wrapper" style="opacity:0.3;"><div class="pct-tag">0%</div><div style="font-size:9px; color:#999;">UPLOADING...</div></div>`, `${dropX}px`, `${dropY}px`);
             const r = new FileReader();
             r.readAsDataURL(file);
             r.onload = async () => {
-                const base64 = r.result.split(',')[1];
-                const ext = file.name.split('.').pop().toLowerCase();
-                const pctTag = placeholder.querySelector('.pct-tag');
-                if(pctTag) pctTag.innerText = "50%"; // 伪进度
-
+                const base64 = r.result.split(',')[1], ext = file.name.split('.').pop().toLowerCase();
                 try {
                     const res = await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${currentProj.id}_${Date.now()}_${file.name}`, {
                         method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` },
                         body: JSON.stringify({ message: "Upload", content: base64 })
                     });
                     if(res.ok) {
-                        const data = await res.json();
-                        const url = data.content.download_url;
-                        let html = '';
-                        if(['jpg','jpeg','png','gif','webp'].includes(ext)) html = `<img src="${url}">`;
-                        else if(['mp4','webm'].includes(ext)) html = `<video src="${url}" autoplay loop muted playsinline></video>`;
-                        else html = `<div style="padding:15px; border:1px solid #eee;">${file.name}</div>`;
-                        
+                        const data = await res.json(), url = data.content.download_url;
+                        let html = (['jpg','jpeg','png','gif','webp'].includes(ext)) ? `<img src="${url}">` : (['mp4','webm'].includes(ext) ? `<video src="${url}" autoplay loop muted playsinline></video>` : `<div style="padding:15px; border:1px solid #eee;">${file.name}</div>`);
                         placeholder.innerHTML = html + `<div class="resizer"></div>`;
                         saveToCloud(true);
                     }
@@ -163,13 +173,9 @@
         if (!content.trim().startsWith('<')) content = `<div class="miro-text-box">${content}</div>`;
         d.innerHTML = `${content}<div class="resizer"></div>`;
         vp.appendChild(d);
-
         const txt = d.querySelector('.miro-text-box');
         if(txt) {
-            d.ondblclick = (e) => { 
-                if(!isAdmin) return; e.stopPropagation(); 
-                txt.contentEditable = "true"; txt.focus(); 
-            };
+            d.ondblclick = (e) => { if(!isAdmin) return; e.stopPropagation(); txt.contentEditable = "true"; txt.focus(); };
             txt.onblur = () => { txt.contentEditable = "false"; saveToCloud(true); };
         }
         return d;
@@ -193,73 +199,30 @@
             this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3}; this.st = 1; this.a = 0; 
         }
         update() {
-            this.x+=this.v.x; this.y+=this.v.y;
-            if(this.x<0||this.x>cvs.width)this.v.x*=-1; if(this.y<0||this.y>cvs.height)this.v.y*=-1;
+            this.x+=this.v.x; this.y+=this.v.y; if(this.x<0||this.x>cvs.width)this.v.x*=-1; if(this.y<0||this.y>cvs.height)this.v.y*=-1;
             let d = Math.hypot(m.smX-this.x, m.smY-this.y);
-            if(d < 180) {
-                let f = (180-d)/180; this.s = this.bs + f*25;
-                this.st = 1 + (Math.hypot(m.vx, m.vy) * 0.15 * f); this.a = Math.atan2(m.vy, m.vx);
-            } else { this.s += (this.bs-this.s)*0.1; this.st += (1-this.st)*0.1; }
-            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a); ctx.beginPath();
-            ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
-            ctx.fillStyle = this.c; ctx.globalAlpha = (currentLvl>1)?0.2:0.5;
-            ctx.fill(); ctx.restore();
+            if(d < 180) { let f = (180-d)/180; this.s = this.bs + f*25; this.st = 1 + (Math.hypot(m.vx, m.vy) * 0.15 * f); this.a = Math.atan2(m.vy, m.vx); } 
+            else { this.s += (this.bs-this.s)*0.1; this.st += (1-this.st)*0.1; }
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a); ctx.beginPath(); ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2); ctx.fillStyle = this.c; ctx.globalAlpha = (currentLvl>1)?0.2:0.5; ctx.fill(); ctx.restore();
         }
     }
 
     function initParticles() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; pts = Array.from({length: 100}, () => new P()); }
-    function animate() {
-        ctx.clearRect(0,0,cvs.width, cvs.height);
-        let px = m.smX, py = m.smY; m.smX += (m.x - m.smX)*0.1; m.smY += (m.y - m.smY)*0.1; m.vx = m.smX-px; m.vy = m.smY-py;
-        pts.forEach(p => p.update()); requestAnimationFrame(animate);
-    }
-
-    async function initSystem() {
-        const bar = document.getElementById('loading-bar');
-        if(bar) bar.style.width = "40%";
-        try {
-            const res = await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`, {
-                headers: (isAdmin && CONFIG.token) ? { 'Authorization': `token ${CONFIG.token}` } : {}
-            });
-            if (res.ok) {
-                const json = await res.json();
-                portfolio_data = JSON.parse(decodeURIComponent(escape(atob(json.content))));
-            }
-        } catch (e) { console.error("Load fail", e); }
-        finally {
-            if(bar) bar.style.width = "100%";
-            setTimeout(() => {
-                const screen = document.getElementById('loading-screen');
-                if(screen) screen.style.opacity = "0";
-                setTimeout(() => { if(screen) screen.style.display = "none"; showLevel(1); }, 500);
-            }, 300);
-        }
-    }
+    function animate() { ctx.clearRect(0,0,cvs.width, cvs.height); let px = m.smX, py = m.smY; m.smX += (m.x - m.smX)*0.1; m.smY += (m.y - m.smY)*0.1; m.vx = m.smX-px; m.vy = m.smY-py; pts.forEach(p => p.update()); requestAnimationFrame(animate); }
 
     async function saveToCloud(silent = false) {
-        if(!isAdmin) return;
-        if(currentProj) {
-            // 同步标题到全局数据
-            const newTitle = document.getElementById('lvl4Title').innerText;
-            portfolio_data[currentProj.id].title = newTitle;
-            currentProj.title = newTitle;
-
-            const items = Array.from(vp.children).map(el => ({ 
-                html: el.innerHTML.replace(/<div class=\"resizer\".*?><\/div>/g, ''), 
-                x: el.style.left, y: el.style.top, w: el.style.width
-            }));
-            portfolio_data[currentProj.id].layout = items;
-            portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src=\"([^\"]+)\"/)?.[1]);
-        }
+        if(!isAdmin || !currentProj) return;
+        const newTitle = document.getElementById('lvl4Title').innerText;
+        portfolio_data[currentProj.id].title = newTitle; currentProj.title = newTitle;
+        const items = Array.from(vp.children).map(el => ({ html: el.innerHTML.replace(/<div class=\"resizer\".*?><\/div>/g, ''), x: el.style.left, y: el.style.top, w: el.style.width }));
+        portfolio_data[currentProj.id].layout = items;
+        portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src=\"([^\"]+)\"/)?.[1]);
         try {
             const url = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
             const getRes = await fetch(url, { headers: { 'Authorization': `token ${CONFIG.token}` }});
             const sha = (await getRes.json()).sha;
             const content = btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2))));
-            await fetch(url, {
-                method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` },
-                body: JSON.stringify({ message: "Update", content, sha })
-            });
+            await fetch(url, { method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` }, body: JSON.stringify({ message: "Update", content, sha }) });
         } catch (e) {}
     }
 
@@ -277,14 +240,14 @@
         document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
         if(lvl === 2) renderCatGrid();
         if(lvl === 3) renderProjGrid();
-        if(lvl === 4) {
+        if(lvl === 4 && currentProj) {
             vp.innerHTML = '';
-            (currentProj.layout || []).forEach(it => createMiroItem(it.html, it.x, it.y, it.w));
-            document.getElementById('lvl4Title').innerText = currentProj.title;
+            (portfolio_data[currentProj.id]?.layout || []).forEach(it => createMiroItem(it.html, it.x, it.y, it.w));
+            document.getElementById('lvl4Title').innerText = portfolio_data[currentProj.id]?.title || "Untitled";
             document.getElementById('lvl4CatTag').innerText = currentCat;
         }
-        const activeLayer = document.getElementById('lvl' + lvl);
-        if(activeLayer) activeLayer.classList.add('active');
+        const targetLayer = document.getElementById('lvl' + lvl);
+        if(targetLayer) targetLayer.classList.add('active');
         document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
         document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
         document.getElementById('backBtnContainer').classList.toggle('show', lvl > 1);
@@ -312,41 +275,21 @@
 
     function openProject(id) { currentProj = {id, ...portfolio_data[id]}; showLevel(4); }
     function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
-    function createNewProject() { 
-        const n = prompt("Name:"); 
-        if(n) { const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = {title:n, layout:[], thumbs:[]}; saveToCloud(false).then(renderProjGrid); }
-    }
-
-    function deleteProject(id, e) {
-        e.stopPropagation(); if(!isAdmin) return;
-        const proj = portfolio_data[id];
-        if (proj.layout?.length > 0) { if (prompt(`Enter "${proj.title}" to delete:`) !== proj.title) return; }
-        else if (!confirm("Delete?")) return;
-        delete portfolio_data[id]; saveToCloud(false).then(renderProjGrid);
-    }
+    function createNewProject() { const n = prompt("Name:"); if(n) { const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = {title:n, layout:[], thumbs:[]}; saveToCloud(false).then(renderProjGrid); }}
+    function deleteProject(id, e) { e.stopPropagation(); if(!isAdmin) return; const proj = portfolio_data[id]; if (proj.layout?.length > 0) { if (prompt(`Enter "${proj.title}" to delete:`) !== proj.title) return; } else if (!confirm("Delete?")) return; delete portfolio_data[id]; saveToCloud(false).then(renderProjGrid); }
 
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
     bd.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.min(Math.max(zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.1), 3); updateViewport(); }, {passive:false});
-    
     bd.onmousedown = (e) => {
-        // 中键专用：仅画布平移
         if(e.button === 1) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); return; }
-        
         const item = e.target.closest('.miro-item');
         if(item && isAdmin) {
-            if(e.target.contentEditable === "true") return; // 正在编辑不拖拽
-            isDragging = true; dragTarget = item;
-            e.preventDefault(); 
-            startX = e.clientX/zoom - parseInt(item.style.left);
-            startY = e.clientY/zoom - parseInt(item.style.top);
-            item.style.zIndex = 1000;
-            document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-            item.classList.add('selected');
-        } else {
-            isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY;
-        }
+            if(e.target.contentEditable === "true") return;
+            isDragging = true; dragTarget = item; e.preventDefault();
+            startX = e.clientX/zoom - parseInt(item.style.left); startY = e.clientY/zoom - parseInt(item.style.top);
+            item.style.zIndex = 1000; document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected')); item.classList.add('selected');
+        } else { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; }
     };
-
     window.onmousemove = (e) => {
         if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
         else if(isDragging) {
@@ -354,16 +297,13 @@
             document.querySelectorAll('.miro-item').forEach(other => {
                 if(other === dragTarget) return;
                 const ox = parseInt(other.style.left), oy = parseInt(other.style.top), ow = parseInt(other.style.width);
-                if(Math.abs(nx - ox) < SNAP) nx = ox;
-                if(Math.abs(nx - (ox + ow)) < SNAP) nx = ox + ow + 20;
-                if(Math.abs(ny - oy) < SNAP) ny = oy;
+                if(Math.abs(nx - ox) < SNAP) nx = ox; if(Math.abs(nx - (ox + ow)) < SNAP) nx = ox + ow + 20; if(Math.abs(ny - oy) < SNAP) ny = oy;
             });
             dragTarget.style.left = nx + 'px'; dragTarget.style.top = ny + 'px';
         }
     };
     window.onmouseup = () => { if(isDragging) saveToCloud(true); isPanning = isDragging = false; };
-    bd.ondrop = e => { e.preventDefault(); handleUpload(e); };
-    bd.ondragover = e => e.preventDefault();
+    bd.ondrop = e => { e.preventDefault(); handleUpload(e); }; bd.ondragover = e => e.preventDefault();
 
     window.onload = () => { 
         initParticles(); animate(); 
