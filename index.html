@@ -38,13 +38,9 @@
         .stack-container:hover .layer-2 { transform: translate(5px, -5px); opacity: 0.8; }
         .stack-container:hover .layer-3 { transform: translate(22px, -22px); opacity: 0.5; }
         .stack-label { margin-top: 35px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; }
-        .stack-container:hover .stack-label { color: #000; letter-spacing: 5px; }
-
+        
         .del-proj-btn { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; background: #ff4d4d; color: #fff; border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; border: 2px solid #fff; opacity: 0; transition: 0.3s; }
         .stack-container:hover .del-proj-btn { opacity: 1; }
-
-        #log-panel { position: fixed; right: 40px; top: 120px; width: 260px; height: 65vh; background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); border-left: 1px solid #eee; padding: 20px; font-size: 9px; overflow-y: auto; z-index: 100; font-family: monospace; color: #777; display: none; }
-        .log-entry { margin-bottom: 12px; border-bottom: 1px solid #f2f2f2; padding-bottom: 6px; }
 
         #lvl4 { background: #fbfbfb; z-index: 6000; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
@@ -52,16 +48,16 @@
         .miro-item.selected { border-color: #4285F4 !important; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
         .resizer { width: 12px; height: 12px; background: #4285F4; position: absolute; right: 0; bottom: 0; cursor: nwse-resize; opacity: 0; z-index: 10; }
-        .miro-item.selected .resizer { opacity: 1; }
 
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 7000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 10px 20px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; }
         #save-status { font-size: 0.5rem; font-weight: bold; text-transform: uppercase; opacity: 0; transition: 0.3s; }
         #save-status.active { opacity: 1; }
-        #save-progress-container { position: fixed; bottom: 75px; left: 60px; width: 150px; height: 2px; background: #eee; display: none; z-index: 7002; }
-        #save-progress-bar { width: 0%; height: 100%; background: #34A853; transition: width 0.3s; }
 
-        .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.4rem; color: #ccc; cursor: pointer; z-index: 7001; letter-spacing: 1px; }
+        /* 全局管理员按钮 */
+        .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 1.5px; text-transform: uppercase; background: rgba(255,255,255,0.8); padding: 5px 10px; border-radius: 4px; }
+        .admin-lock:hover { color: #000; }
+
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         #loading-bar-wrap { width: 100px; height: 1px; background: #eee; position: relative; overflow: hidden; }
         #loading-bar { width: 0%; height: 100%; background: #000; transition: 0.3s; }
@@ -71,14 +67,18 @@
 
 <div id="loading-screen">
     <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
-    <p style="font-size: 0.5rem; letter-spacing: 2px; margin-top: 15px; color: #aaa;">GITHUB SYNCING...</p>
+    <p style="font-size: 0.4rem; letter-spacing: 2px; margin-top: 15px; color: #aaa;">CONNECTING TO GITHUB...</p>
 </div>
 
+<div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN</div>
+
 <nav id="mainNav"><div class="nav-logo" onclick="showLevel(1)">CHENMING</div><div id="dynamicNav" class="nav-links"></div></nav>
+
 <div id="backBtnContainer" class="back-btn-container">
-    <div id="addProjBtn" class="back-btn" style="display:none; margin-bottom: 10px;" onclick="createNewProject()">+ PROJECT</div>
+    <div id="addProjBtn" class="back-btn" style="display:none; margin-bottom: 10px; color: #34A853; font-weight: bold;" onclick="createNewProject()">+ NEW PROJECT</div>
     <div class="back-btn" onclick="handleBack()">← BACK</div>
 </div>
+
 <div id="canvas-container"><canvas id="particleCanvas"></canvas></div>
 
 <div class="view-layer active" id="lvl1">
@@ -89,32 +89,26 @@
 </div>
 
 <div id="lvl2" class="view-layer"><div class="neural-grid" id="catGrid"></div></div>
-<div id="lvl3" class="view-layer">
-    <div class="neural-grid" id="projGrid"></div>
-    <div id="log-panel"></div>
-</div>
+<div id="lvl3" class="view-layer"><div class="neural-grid" id="projGrid"></div></div>
 
-<div id="lvl4" class="view-layer" ondragover="event.preventDefault()" ondrop="handleDrop(event)" oncontextmenu="return false;">
+<div id="lvl4" class="view-layer" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
     <div class="lvl4-header" style="position: fixed; top: 100px; left: 60px; z-index: 7000; pointer-events: none;">
-        <div id="lvl4CatTag" style="font-size: 0.45rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px;">CATEGORY</div>
-        <div id="lvl4Title" style="pointer-events: auto; outline:none;" contenteditable="true" onblur="saveToCloud()">PROJECT TITLE</div>
+        <div id="lvl4CatTag" style="font-size: 0.4rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px;">CATEGORY</div>
+        <div id="lvl4Title" style="pointer-events: auto; outline:none; font-size: 1.5rem;" contenteditable="true" onblur="saveToCloud()">PROJECT TITLE</div>
     </div>
     <div id="miro-viewport"></div>
     <div class="miro-ui" id="adminControls" style="display:none;">
         <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ MEDIA</button>
         <button class="ui-btn" onclick="addText()">+ TEXT</button>
-        <button class="ui-btn" onclick="saveToCloud()">SAVE</button>
-        <div id="save-progress-container"><div id="save-progress-bar"></div></div>
+        <button class="ui-btn" onclick="saveToCloud()">SAVE TO CLOUD</button>
         <span id="save-status"></span>
     </div>
-    <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN</div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
 </div>
 
 <script>
-    // --- GITHUB CONFIGURATION ---
     const GH_CONFIG = {
-        token: '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',
+        get token() { return localStorage.getItem('gh_token') || ''; },
         owner: 'chenming-ctrl',
         repo: 'my-portfolio-data',
         path: 'portfolio_data.json'
@@ -122,37 +116,30 @@
 
     let portfolio_raw_data = {}; 
     const portfolio = {
-        'Architecture': { thumb: 'arch.jpg', projects: [] },
-        'Computational': { thumb: 'Research.jpg', projects: [] },
-        'Interest': { thumb: 'Interest.jpg', projects: [] },
-        'Photo': { thumb: 'Photo.jpg', projects: [] },
-        'Ongoing': { thumb: 'Ongoing.jpg', projects: [] }
+        'Architecture': { thumb: 'https://via.placeholder.com/150?text=Arch', projects: [] },
+        'Computational': { thumb: 'https://via.placeholder.com/150?text=Comp', projects: [] },
+        'Interest': { thumb: 'https://via.placeholder.com/150?text=Interest', projects: [] },
+        'Photo': { thumb: 'https://via.placeholder.com/150?text=Photo', projects: [] },
+        'Ongoing': { thumb: 'https://via.placeholder.com/150?text=Ongoing', projects: [] }
     };
 
     let isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, selectedItems = [];
     let dragTarget = null, startX, startY, startW, startH;
-    const SNAP_SIZE = 10;
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
 
-    // --- GitHub 数据读取逻辑 ---
     async function fetchFromGithub() {
         const url = `https://api.github.com/repos/${GH_CONFIG.owner}/${GH_CONFIG.repo}/contents/${GH_CONFIG.path}`;
         try {
-            const res = await fetch(url, {
-                headers: { 'Authorization': `token ${GH_CONFIG.token}`, 'Cache-Control': 'no-cache' }
+            const res = await fetch(url, { 
+                headers: GH_CONFIG.token ? { 'Authorization': `token ${GH_CONFIG.token}`, 'Cache-Control': 'no-cache' } : { 'Cache-Control': 'no-cache' }
             });
-            if (res.status === 404) {
-                portfolio_raw_data = {};
-            } else {
+            if (res.ok) {
                 const data = await res.json();
-                const content = decodeURIComponent(escape(atob(data.content)));
-                portfolio_raw_data = JSON.parse(content);
+                portfolio_raw_data = JSON.parse(decodeURIComponent(escape(atob(data.content))));
             }
-            syncToLocalModel();
-        } catch (err) {
-            console.error("Git Fetch Error:", err);
-        }
+        } catch (e) { console.log("Init fresh data"); }
+        syncToLocalModel();
     }
 
     function syncToLocalModel() {
@@ -160,12 +147,7 @@
             const prefix = cat[0].toLowerCase();
             portfolio[cat].projects = Object.keys(portfolio_raw_data)
                 .filter(id => id.startsWith(prefix))
-                .map(id => ({
-                    id: id,
-                    title: portfolio_raw_data[id].title || 'Untitled',
-                    thumbs: portfolio_raw_data[id].thumbs || [],
-                    layout: portfolio_raw_data[id].layout || []
-                }));
+                .map(id => ({ id, ...portfolio_raw_data[id] }));
         });
         document.getElementById('loading-bar').style.width = "100%";
         setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; }, 500);
@@ -173,193 +155,174 @@
         if(currentLvl === 3) renderProjGrid();
     }
 
-    // --- GitHub 数据保存逻辑 ---
     async function saveToCloud(silent = false) {
-        if(!isAdmin || !currentProj) return;
+        if(!isAdmin || !GH_CONFIG.token) return;
         const status = document.getElementById('save-status');
+        if(!silent) { status.innerText = "SYNCING..."; status.classList.add('active'); }
+
         const items = Array.from(vp.children).map(el => ({ 
             html: el.innerHTML.replace('<div class="resizer"></div>', ''), 
             x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height
         }));
         const thumbs = items.filter(it => it.html.includes('<img')).slice(0, 3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
-        if(!silent) { status.innerText = `Git Syncing...`; status.classList.add('active'); }
 
         const url = `https://api.github.com/repos/${GH_CONFIG.owner}/${GH_CONFIG.repo}/contents/${GH_CONFIG.path}`;
         try {
             const getRes = await fetch(url, { headers: { 'Authorization': `token ${GH_CONFIG.token}` } });
-            let sha = null;
-            let currentFullData = {};
-            if (getRes.ok) {
-                const gitFile = await getRes.json();
-                sha = gitFile.sha;
-                currentFullData = JSON.parse(decodeURIComponent(escape(atob(gitFile.content))));
+            let sha = getRes.ok ? (await getRes.json()).sha : null;
+            
+            if(currentProj) {
+                portfolio_raw_data[currentProj.id] = {
+                    title: document.getElementById('lvl4Title').innerText,
+                    layout: items,
+                    thumbs: thumbs
+                };
             }
-            currentFullData[currentProj.id] = {
-                title: document.getElementById('lvl4Title').innerText,
-                layout: items,
-                thumbs: thumbs
-            };
-            const newContent = btoa(unescape(encodeURIComponent(JSON.stringify(currentFullData, null, 2))));
+            const content = btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_raw_data, null, 2))));
             const putRes = await fetch(url, {
                 method: 'PUT',
                 headers: { 'Authorization': `token ${GH_CONFIG.token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: `Update: ${currentProj.title}`, content: newContent, sha: sha })
+                body: JSON.stringify({ message: "Update Portfolio", content, sha })
             });
-            if(putRes.ok) {
-                portfolio_raw_data = currentFullData;
-                if(!silent) { status.innerText = "Git Pushed ✓"; setTimeout(() => status.classList.remove('active'), 1500); }
-            }
-        } catch (err) { console.error(err); }
+            if(putRes.ok && !silent) { status.innerText = "PUSHED ✓"; setTimeout(() => status.classList.remove('active'), 1500); }
+        } catch (err) { alert("Git Error: " + err); }
     }
 
-    // --- 以下代码均直接迁移自 index (7).html，不做修改 ---
+    function checkUnlock() {
+        if(isAdmin) {
+            if(confirm("Logout?")) { localStorage.removeItem('gh_token'); location.reload(); }
+            return;
+        }
+        if(prompt("Password:") === "li123") {
+            let token = localStorage.getItem('gh_token');
+            if(!token) token = prompt("Enter GitHub Token (ghp_...):");
+            if(token) {
+                localStorage.setItem('gh_token', token);
+                isAdmin = true;
+                document.getElementById('adminControls').style.display = 'flex';
+                document.getElementById('adminInfo').innerText = "ADMIN ACTIVE";
+                showLevel(currentLvl, currentCat);
+            }
+        }
+    }
+
     function showLevel(lvl, cat = '') {
-        if (currentLvl === 4 && lvl !== 4) vp.innerHTML = ''; 
         currentLvl = lvl; if(cat) currentCat = cat;
         document.querySelectorAll('.view-layer').forEach(el => el.classList.remove('active'));
-        document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
-        const logPanel = document.getElementById('log-panel');
-        const pGrid = document.getElementById('projGrid');
-        if(lvl === 3 && isAdmin) {
-            renderProjGrid();
-            logPanel.style.display = "block";
-            pGrid.style.width = "calc(100% - 320px)";
-            logPanel.innerHTML = '<div style="font-weight:bold; margin-bottom:15px; border-bottom:1px solid #000; padding-bottom:5px;">SYSTEM LOGS</div>';
-        } else {
-            if (lvl === 3) renderProjGrid();
-            logPanel.style.display = "none";
-            pGrid.style.width = "95%";
-        }
-        if(lvl === 2) renderCatGrid();
-        if(lvl === 4) { vp.innerHTML = ''; loadBoard(); resetViewport(); document.getElementById('lvl4Title').innerText = currentProj.title; document.getElementById('lvl4CatTag').innerText = currentCat; }
         document.getElementById('lvl' + lvl).classList.add('active');
-        document.documentElement.style.setProperty('--bg-blur', [0, 15, 30, 0][lvl-1] + 'px');
+        document.getElementById('lvl4').style.display = (lvl === 4) ? 'flex' : 'none';
+        
+        if(lvl === 2) renderCatGrid();
+        if(lvl === 3) renderProjGrid();
+        if(lvl === 4) { vp.innerHTML = ''; loadBoard(); resetViewport(); document.getElementById('lvl4Title').innerText = currentProj.title; }
+
         document.getElementById('mainNav').classList.toggle('visible', lvl > 1);
         document.getElementById('backBtnContainer').classList.toggle('show', lvl > 1);
         document.getElementById('addProjBtn').style.display = (lvl === 3 && isAdmin) ? 'block' : 'none';
     }
 
-    window.onkeydown = (e) => {
-        if (!isAdmin || currentLvl !== 4) return;
-        if (document.activeElement.tagName === "INPUT" || document.activeElement.contentEditable === "true") return;
-        if (e.key === "Delete" || e.key === "Backspace") { if (selectedItems.length > 0) { selectedItems.forEach(el => el.remove()); selectedItems = []; saveToCloud(true); } }
-    };
-
-    bd.onmousedown = (e) => {
-        if(currentLvl !== 4) return;
-        const item = e.target.closest('.miro-item');
-        document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-        selectedItems = [];
-        if (e.button === 1) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; return; }
-        if(item && isAdmin && e.button === 0) {
-            item.classList.add('selected'); selectedItems = [item];
-            vp.appendChild(item);
-            if(e.target.classList.contains('resizer')) { isResizing = true; startX = e.clientX; startY = e.clientY; startW = item.offsetWidth; startH = item.offsetHeight; }
-            else { isDragging = true; dragTarget = item; startX = (e.clientX/zoom)-item.offsetLeft; startY = (e.clientY/zoom)-item.offsetTop; }
-        } else { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; }
-    };
-
-    window.onmousemove = (e) => {
-        if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
-        else if(isAdmin && isDragging) { dragTarget.style.left = Math.round((e.clientX/zoom - startX)/SNAP_SIZE)*SNAP_SIZE + 'px'; dragTarget.style.top = Math.round((e.clientY/zoom - startY)/SNAP_SIZE)*SNAP_SIZE + 'px'; }
-        else if(isAdmin && isResizing) { selectedItems[0].style.width = startW + (e.clientX - startX)/zoom + 'px'; selectedItems[0].style.height = startH + (e.clientY - startY)/zoom + 'px'; }
-    };
-
-    window.onmouseup = () => { if(isDragging || isResizing) saveToCloud(true); isPanning = isDragging = isResizing = false; };
-
-    const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
-    let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
-    window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
-    class P {
-        constructor() { this.x = Math.random()*cvs.width; this.y = Math.random()*cvs.height; this.bs = Math.random()*2+2; this.s = this.bs; this.c = ['#4285F4','#34A853','#FBBC05','#EA4335','#9b59b6'][Math.floor(Math.random()*5)]; this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3}; this.st = 1; this.a = 0; }
-        update() {
-            this.x+=this.v.x; this.y+=this.v.y; if(this.x<0||this.x>cvs.width)this.v.x*=-1; if(this.y<0||this.y>cvs.height)this.v.y*=-1;
-            let d = Math.hypot(m.smX-this.x, m.smY-this.y);
-            if(d < 180) { let f = (180-d)/180; this.s = this.bs + f*25; this.st = 1 + (Math.hypot(m.vx, m.vy) * 0.15 * f); this.a = Math.atan2(m.vy, m.vx); }
-            else { this.s += (this.bs-this.s)*0.1; this.st += (1-this.st)*0.1; }
-            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a); ctx.beginPath(); ctx.ellipse(0,0,this.s*this.st, this.s, 0,0, Math.PI*2);
-            ctx.fillStyle = this.c; ctx.globalAlpha = (currentLvl>1)?0.2:0.5; ctx.fill(); ctx.restore();
-        }
-    }
-    function init() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; pts = Array.from({length: 100}, () => new P()); }
-    function animate() {
-        ctx.clearRect(0,0,cvs.width, cvs.height);
-        let px = m.smX, py = m.smY; m.smX += (m.x - m.smX)*0.1; m.smY += (m.y - m.smY)*0.1; m.vx = m.smX-px; m.vy = m.smY-py;
-        pts.forEach(p => p.update()); requestAnimationFrame(animate);
-    }
-
     function renderCatGrid() {
         document.getElementById('catGrid').innerHTML = Object.keys(portfolio).map(cat => {
             const p = portfolio[cat].projects[0];
-            let t = (p && p.thumbs && p.thumbs[0]) ? p.thumbs[0] : portfolio[cat].thumb;
+            const t = (p && p.thumbs && p.thumbs[0]) ? p.thumbs[0] : portfolio[cat].thumb;
             return `<div class="stack-container" onclick="showLevel(3, '${cat}')">
                 <div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1"><img src="${t}"></div></div>
-                <div class="stack-label">${cat}</div></div>`;
+                <div class="stack-label" style="margin-top:20px; font-size:0.5rem; letter-spacing:2px; color:#bbb;">${cat}</div></div>`;
         }).join('');
     }
+
     function renderProjGrid() {
-        document.getElementById('projGrid').innerHTML = portfolio[currentCat].projects.map(p => {
-            let t = p.thumbs || [];
+        const projs = portfolio[currentCat].projects || [];
+        document.getElementById('projGrid').innerHTML = projs.map(p => {
+            const t = p.thumbs || [];
             return `<div class="stack-container" onclick="openProject('${p.id}')">
                 ${isAdmin ? `<div class="del-proj-btn" onclick="deleteProject('${p.id}', event)">✕</div>` : ''}
                 <div class="neural-stack">
                     <div class="neural-layer layer-3">${t[2] ? `<img src="${t[2]}">` : ''}</div>
                     <div class="neural-layer layer-2">${t[1] ? `<img src="${t[1]}">` : ''}</div>
                     <div class="neural-layer layer-1">${t[0] ? `<img src="${t[0]}">` : ''}</div>
-                </div><div class="stack-label">${p.title}</div></div>`;
+                </div><div class="stack-label" style="margin-top:20px; font-size:0.5rem; letter-spacing:2px; color:#666;">${p.title}</div></div>`;
         }).join('');
     }
-    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
-    function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
-    bd.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.min(Math.max(zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.1), 5); updateViewport(); }, {passive:false});
-    function handleBack() { if (currentLvl === 4) showLevel(3, currentCat); else if (currentLvl === 3) showLevel(2); else if (currentLvl === 2) showLevel(1); }
-    function checkUnlock() { if(prompt("Pass:") === "li123") { isAdmin = true; document.getElementById('adminControls').style.display = 'flex'; document.getElementById('adminInfo').innerText = "ADMIN ACTIVE"; showLevel(currentLvl, currentCat); }}
-    function createMiroItem(html, x, y, w = "300px") {
-        const d = document.createElement('div'); d.className = 'miro-item'; d.style.cssText = `left:${x}px; top:${y}px; width:${w}; position:absolute;`;
-        d.innerHTML = `${html}<div class="resizer"></div>`; vp.appendChild(d); return d;
-    }
-    function addText() { createMiroItem(`<div contenteditable="true" style="width:100%; padding:10px; outline:none; font-size:16px;">New Text</div>`, (window.innerWidth/2-panX)/zoom, (window.innerHeight/2-panY)/zoom, "200px"); }
-    function handleUpload(event) { processFiles(event.target.files, (window.innerWidth/2-panX)/zoom, (window.innerHeight/2-panY)/zoom); }
-    function processFiles(files, x, y) {
-        Array.from(files).forEach(file => {
-            const r = new FileReader();
-            r.onload = (e) => {
-                if (file.type.includes('image')) {
-                    const img = new Image();
-                    img.onload = () => {
-                        const cvs = document.createElement('canvas');
-                        let w = img.width, h = img.height, MAX = 1200;
-                        if(w>h && w>MAX){ h*=MAX/w; w=MAX; } else if(h>MAX){ w*=MAX/h; h=MAX; }
-                        cvs.width = w; cvs.height = h;
-                        cvs.getContext('2d').drawImage(img,0,0,w,h);
-                        createMiroItem(`<img src="${cvs.toDataURL('image/jpeg', 0.65)}">`, x, y);
-                        saveToCloud(true);
-                    };
-                    img.src = e.target.result;
-                } else { createMiroItem(`<video src="${e.target.result}" autoplay loop muted></video>`, x, y); saveToCloud(true); }
-            };
-            r.readAsDataURL(file);
-        });
-    }
-    function handleDrop(e) { e.preventDefault(); if(isAdmin) processFiles(e.dataTransfer.files, (e.clientX-panX)/zoom, (e.clientY-panY)/zoom); }
-    function loadBoard() { currentProj.layout.forEach(it => createMiroItem(it.html, parseInt(it.x), parseInt(it.y), it.w)); }
-    
-    function createNewProject() { 
-        if(isAdmin && currentCat) { 
-            const n = prompt("Name:") || "New"; 
-            const id = `${currentCat[0].toLowerCase()}${Date.now()}`; 
-            portfolio_raw_data[id] = {title:n, layout:[], thumbs:[]};
+
+    function createNewProject() {
+        const n = prompt("Project Name:");
+        if(n) {
+            const id = currentCat[0].toLowerCase() + Date.now();
+            portfolio_raw_data[id] = { title: n, layout: [], thumbs: [] };
             saveToCloud(false).then(() => syncToLocalModel());
-        } 
+        }
     }
-    function deleteProject(id, e) { 
-        e.stopPropagation(); 
-        if(isAdmin && confirm("Delete?")) {
+
+    function deleteProject(id, e) {
+        e.stopPropagation();
+        if(confirm("Delete this project?")) {
             delete portfolio_raw_data[id];
             saveToCloud(false).then(() => syncToLocalModel());
         }
     }
-    function openProject(id) { currentProj = portfolio[currentCat].projects.find(x => x.id === id); showLevel(4); }
+
+    function openProject(id) {
+        currentProj = portfolio[currentCat].projects.find(p => p.id === id);
+        showLevel(4);
+    }
+
+    // --- 核心交互逻辑 (Miro-style) ---
+    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
+    function resetViewport() { zoom = 1; panX = 0; panY = 0; updateViewport(); }
+    bd.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.min(Math.max(zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.1), 3); updateViewport(); }, {passive:false});
+
+    bd.onmousedown = (e) => {
+        if(currentLvl !== 4) return;
+        const item = e.target.closest('.miro-item');
+        if (e.button === 1 || (!item && e.button === 0)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; return; }
+        if(item && isAdmin) {
+            isDragging = true; dragTarget = item; vp.appendChild(item);
+            startX = (e.clientX/zoom) - item.offsetLeft; startY = (e.clientY/zoom) - item.offsetTop;
+            if(e.target.classList.contains('resizer')) { isResizing = true; isDragging = false; startX = e.clientX; startY = e.clientY; startW = item.offsetWidth; startH = item.offsetHeight; }
+        }
+    };
+
+    window.onmousemove = (e) => {
+        if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
+        else if(isDragging) { dragTarget.style.left = (e.clientX/zoom - startX) + 'px'; dragTarget.style.top = (e.clientY/zoom - startY) + 'px'; }
+        else if(isResizing) { dragTarget.style.width = startW + (e.clientX - startX)/zoom + 'px'; dragTarget.style.height = startH + (e.clientY - startY)/zoom + 'px'; }
+    };
+
+    window.onmouseup = () => { if(isDragging || isResizing) saveToCloud(true); isPanning = isDragging = isResizing = false; };
+
+    function createMiroItem(html, x, y, w = "300px") {
+        const d = document.createElement('div'); d.className = 'miro-item'; 
+        d.style.cssText = `left:${x}; top:${y}; width:${w}; position:absolute;`;
+        d.innerHTML = `${html}<div class="resizer" style="width:10px; height:10px; background:#4285F4; position:absolute; right:0; bottom:0; cursor:nwse-resize;"></div>`;
+        vp.appendChild(d);
+    }
+
+    function addText() { createMiroItem(`<div contenteditable="true" style="padding:10px; outline:none; font-size:1rem;">New Text</div>`, "100px", "100px", "200px"); }
+    function handleUpload(e) { 
+        Array.from(e.target.files).forEach(file => {
+            const r = new FileReader();
+            r.onload = (ev) => createMiroItem(`<img src="${ev.target.result}" style="width:100%;">`, "100px", "100px");
+            r.readAsDataURL(file);
+        });
+    }
+    function handleDrop(e) { e.preventDefault(); if(isAdmin) handleUpload({target: {files: e.dataTransfer.files}}); }
+    function loadBoard() { (currentProj.layout || []).forEach(it => createMiroItem(it.html, it.x, it.y, it.w)); }
+    function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
+
+    // --- 粒子系统 ---
+    const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
+    let pts = [];
+    function init() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; pts = Array.from({length: 80}, () => ({x:Math.random()*cvs.width, y:Math.random()*cvs.height, v:{x:(Math.random()-0.5)*0.5, y:(Math.random()-0.5)*0.5}})); }
+    function animate() {
+        ctx.clearRect(0,0,cvs.width,cvs.height);
+        ctx.fillStyle = "#eee";
+        pts.forEach(p => { 
+            p.x+=p.v.x; p.y+=p.v.y; if(p.x<0||p.x>cvs.width) p.v.x*=-1; if(p.y<0||p.y>cvs.height) p.v.y*=-1;
+            ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+        });
+        requestAnimationFrame(animate);
+    }
 
     window.onload = () => { init(); animate(); fetchFromGithub(); };
     window.onresize = init;
@@ -367,4 +330,3 @@
 </script>
 </body>
 </html>
-
