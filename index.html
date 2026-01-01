@@ -16,7 +16,7 @@
         .nav-links a { text-decoration: none; color: #999; font-size: 0.6rem; text-transform: uppercase; cursor: pointer; transition: 0.3s; }
         .nav-links a:hover { color: #000; }
 
-        /* 移动端汉堡菜单 */
+        /* 汉堡菜单与堆叠特效 */
         .menu-toggle { display: none; width: 25px; height: 18px; position: relative; cursor: pointer; z-index: 6000; }
         .menu-toggle span { display: block; width: 100%; height: 1px; background: #000; position: absolute; transition: 0.3s; }
         .menu-toggle span:nth-child(2) { top: 8px; }
@@ -32,21 +32,17 @@
                 position: fixed; top: 0; right: -100%; width: 100%; height: 100vh; 
                 background: rgba(255,255,255,0.98); flex-direction: column; 
                 justify-content: center; align-items: center; gap: 30px !important; 
-                transition: right 0.6s cubic-bezier(0.23, 1, 0.32, 1); z-index: 5001;
-                pointer-events: auto;
+                transition: right 0.6s cubic-bezier(0.23, 1, 0.32, 1); z-index: 5001; pointer-events: auto;
             }
             .nav-links.open { right: 0; }
             .nav-links a { opacity: 0; transform: translateY(20px); transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1); }
             .nav-links.open a { opacity: 1; transform: translateY(0); }
-            .nav-links.open a:nth-child(n) { transition-delay: calc(0.1s * var(--i)); }
-
-            #lvl1 h1 { font-size: 1.8rem; letter-spacing: 12px; line-height: 1.6; margin-bottom: 30px; }
-            #lvl1 p { font-size: 0.5rem; letter-spacing: 6px; line-height: 2.2; }
-            .neural-grid { gap: 30px !important; }
-            .stack-container { width: 120px !important; height: 180px !important; }
-            .neural-stack { width: 100px !important; height: 100px !important; }
+            .nav-links.open a:nth-child(1) { transition-delay: 0.1s; }
+            .nav-links.open a:nth-child(2) { transition-delay: 0.15s; }
+            .nav-links.open a:nth-child(3) { transition-delay: 0.2s; }
+            .nav-links.open a:nth-child(4) { transition-delay: 0.25s; }
+            .nav-links.open a:nth-child(5) { transition-delay: 0.3s; }
             .back-btn-container { left: 20px !important; bottom: 20px !important; }
-            .lvl4-header { top: 70px !important; left: 25px !important; }
         }
 
         #lvl1 h1 { font-size: 3.5rem; font-weight: 100; letter-spacing: 20px; margin-bottom: 20px; text-transform: uppercase; color: #000; }
@@ -55,22 +51,23 @@
         .stack-container { position: relative; width: 160px; height: 220px; cursor: pointer; text-align: center; perspective: 1000px; }
         .neural-stack { position: relative; width: 140px; height: 140px; transform-style: preserve-3d; margin: 0 auto; transition: transform 0.6s; }
         .neural-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; border: 1px solid rgba(0,0,0,0.05); overflow: hidden; transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 5px 15px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: center; }
-        .neural-layer img { width: 100%; height: 100%; object-fit: cover; }
-        .layer-1 { z-index: 5; } .layer-2 { z-index: 4; transform: translate(10px, -10px); opacity: 0.6; } .layer-3 { z-index: 3; transform: translate(20px, -20px); opacity: 0.3; }
+        .layer-1 { z-index: 5; } .layer-2 { z-index: 4; transform: translate(10px, -10px); opacity: 0.6; }
         .stack-container:hover .layer-1 { transform: translate(-15px, 15px) rotate(-3deg); box-shadow: 15px 15px 30px rgba(0,0,0,0.1); }
-        .stack-label { margin-top: 35px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; }
+        .stack-label { margin-top: 35px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; }
         
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
-        
-        /* 回退四级页面稳定版样式 */
         #lvl4 { background: #fbfbfb; z-index: 6000; display: none; overflow: hidden; }
-        #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform; }
-        .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; transition: box-shadow 0.3s; }
+        #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
+        .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
-        .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
-        .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-        .resize-handle { position: absolute; width: 14px; height: 14px; background: #4285F4; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; z-index: 1001; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .crop-container { width: 100%; height: 100%; overflow: hidden; }
+        .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+        .resize-handle { position: absolute; width: 14px; height: 14px; background: #4285F4; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; z-index: 1001; }
+
+        /* 上传 UI */
+        #upload-progress-box { position: fixed; bottom: 30px; right: 30px; background: #fff; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); border-radius: 8px; z-index: 10000; display: none; min-width: 200px; }
+        .prog-bar-inner { height: 2px; background: #000; width: 0%; transition: width 0.3s; }
 
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
         .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
@@ -114,6 +111,12 @@
     </div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
 </div>
+
+<div id="upload-progress-box">
+    <div style="font-size: 0.45rem; letter-spacing: 2px; margin-bottom: 10px;" class="prog-text">UPLOADING: 0%</div>
+    <div style="width: 100%; height: 2px; background: #eee;"><div class="prog-bar-inner"></div></div>
+</div>
+
 <div class="admin-lock" onclick="checkUnlock()" id="adminInfo" style="position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px;">ADMIN LOGIN</div>
 
 <script>
@@ -123,7 +126,7 @@
     let dragTarget = null, startX, startY, startW;
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
 
-    // --- 粒子系统回退至回溯版 ---
+    // --- 粒子系统回溯 ---
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
@@ -139,91 +142,69 @@
         }
     }
 
-    // --- 四级页面稳定版逻辑 ---
-    function createMiroItem(content, x, y, w = "300px", h = "auto") {
-        const d = document.createElement('div'); d.className = 'miro-item'; 
-        d.style.left = x; d.style.top = y; d.style.width = w; d.style.height = h;
-        d.innerHTML = `<div class="crop-container">${content}</div><div class="resize-handle"></div>`;
-        const rh = d.querySelector('.resize-handle'); rh.style.display = isAdmin ? 'block' : 'none';
-        
-        const edit = d.querySelector('[contenteditable]'); 
-        if(edit) edit.contentEditable = isAdmin;
-
-        d.onmousedown = (e) => {
-            if(!isAdmin || e.button === 1 || (edit && document.activeElement === edit)) return;
-            e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-            d.classList.add('selected'); vp.appendChild(d); 
-            isDragging = true; dragTarget = d;
-            startX = (e.clientX / zoom) - parseInt(d.style.left);
-            startY = (e.clientY / zoom) - parseInt(d.style.top);
-        };
-
-        rh.onmousedown = (e) => {
-            e.stopPropagation(); e.preventDefault();
-            isResizing = true; dragTarget = d;
-            startW = parseInt(d.style.width); startX = e.clientX;
-        };
-
-        vp.appendChild(d); return d;
-    }
-
-    bd.onmousedown = (e) => {
-        if(currentLvl === 4 && (e.button === 1 || e.target === bd || e.target === vp)) {
-            isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault();
-        }
-    };
-
-    window.onmousemove = (e) => {
-        if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
-        else if(isDragging && dragTarget && !isResizing) {
-            dragTarget.style.left = (e.clientX / zoom) - startX + "px";
-            dragTarget.style.top = (e.clientY / zoom) - startY + "px";
-        } else if(isResizing && dragTarget) {
-            dragTarget.style.width = Math.max(50, startW + (e.clientX - startX) / zoom) + "px";
-        }
-    };
-
-    window.onmouseup = () => { if(isDragging || isResizing) saveToCloud(); isDragging = isResizing = isPanning = false; };
-    
-    bd.addEventListener('wheel', e => {
-        if(currentLvl === 4) {
-            e.preventDefault();
-            const f = Math.pow(1.1, -e.deltaY / 120);
-            const nz = Math.min(Math.max(zoom * f, 0.05), 5);
-            panX = e.clientX - (e.clientX - panX) * (nz / zoom);
-            panY = e.clientY - (e.clientY - panY) * (nz / zoom);
-            zoom = nz; updateViewport();
-        }
-    }, {passive:false});
-
-    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
-
-    // --- 导航与 About 逻辑 ---
+    // --- About 与 路径隔离 ---
     function toggleMenu() { document.getElementById('dynamicNav').classList.toggle('open'); document.getElementById('menuToggle').classList.toggle('open'); }
     function openAboutPage() {
         const aboutId = 'about_section';
-        if(!portfolio_data[aboutId]) {
-            portfolio_data[aboutId] = { title: "ABOUT CHENMING", layout: [{ html: `<div contenteditable="true" style="padding:40px; font-size:1.1rem; line-height:1.8; font-weight:300; max-width:600px; outline:none;">Design, Technology and Architecture. Edit your bio here...</div>`, x: "100px", y: "150px", w: "80vw", h: "auto" }], thumbs: [] };
-        }
+        if(!portfolio_data[aboutId]) portfolio_data[aboutId] = { title: "ABOUT CHENMING", layout: [{ html: `<div contenteditable="true" style="padding:40px; font-size:1.1rem; line-height:1.8; font-weight:300; max-width:600px; outline:none;">Design & Architecture bio here...</div>`, x: "100px", y: "150px", w: "80vw", h: "auto" }], thumbs: [] };
         currentProj = { id: aboutId, ...portfolio_data[aboutId] };
-        currentCat = 'About';
-        showLevel(4); document.getElementById('lvl4CatTag').innerText = "BIOGRAPHY";
+        currentCat = 'About'; showLevel(4); 
     }
-
     function handleBack() {
         if (currentProj && currentProj.id === 'about_section') { showLevel(2); return; }
         if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1);
     }
 
-    // --- 数据网格渲染 ---
+    // --- 上传 UI 回退 ---
+    async function handleUpload(event) {
+        const files = Array.from(event.target.files);
+        const progressBox = document.getElementById('upload-progress-box');
+        const progressBar = progressBox.querySelector('.prog-bar-inner');
+        const progressText = progressBox.querySelector('.prog-text');
+
+        for(const file of files) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                progressBox.style.display = 'block';
+                let prog = 0;
+                const timer = setInterval(() => { prog += (95 - prog) * 0.1; progressBar.style.width = prog + '%'; progressText.innerText = `UPLOADING: ${Math.round(prog)}%`; }, 200);
+
+                const content = e.target.result;
+                const html = file.type.startsWith('image') ? `<img src="${content}">` : `<video src="${content}" autoplay loop muted></video>`;
+                createMiroItem(html, "100px", "100px");
+                await saveToCloud();
+
+                clearInterval(timer); progressBar.style.width = '100%'; progressText.innerText = 'COMPLETE 100%';
+                setTimeout(() => { progressBox.style.display = 'none'; progressBar.style.width = '0%'; }, 1000);
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    // --- 渲染逻辑 ---
     function renderCatGrid() {
         const cats=['Architecture','Computational','Interest','Photo','About'];
-        document.getElementById('catGrid').innerHTML=cats.map((cat, i)=>{
+        document.getElementById('catGrid').innerHTML=cats.map(cat=>{
             const isAbout = cat === 'About';
-            const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase()));
+            const ps=Object.keys(portfolio_data).filter(id=> isAbout ? id==='about_section' : (id.startsWith(cat[0].toLowerCase()) && id!=='about_section'));
             const t=(ps.length&&portfolio_data[ps[0]].thumbs)?portfolio_data[ps[0]].thumbs[0]:'';
-            return `<div class="stack-container" style="--i:${i}" onclick="${isAbout ? 'openAboutPage()' : `showLevel(3, '${cat}')`}"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;
+            return `<div class="stack-container" onclick="${isAbout ? 'openAboutPage()' : `showLevel(3, '${cat}')`}"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:10px;color:#ccc">${cat[0]}</span>`}</div></div><div class="stack-label">${cat}</div></div>`;
         }).join('');
+    }
+
+    function createMiroItem(content, x, y, w = "300px", h = "auto") {
+        const d = document.createElement('div'); d.className = 'miro-item'; 
+        d.style.left = x; d.style.top = y; d.style.width = w; d.style.height = h;
+        d.innerHTML = `<div class="crop-container">${content}</div><div class="resize-handle"></div>`;
+        const rh = d.querySelector('.resize-handle'); rh.style.display = isAdmin ? 'block' : 'none';
+        d.onmousedown = (e) => {
+            if(!isAdmin || e.button === 1) return;
+            e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
+            d.classList.add('selected'); vp.appendChild(d); isDragging = true; dragTarget = d;
+            startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
+        };
+        rh.onmousedown = (e) => { e.stopPropagation(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
+        vp.appendChild(d); return d;
     }
 
     function showLevel(lvl, cat = '') {
@@ -232,15 +213,24 @@
         document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none';
         if(lvl===2) renderCatGrid();
         if(lvl===3) {
-            const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]}));
+            const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase()) && id!=='about_section').map(id=>({id,...portfolio_data[id]}));
             document.getElementById('projGrid').innerHTML=ps.map(p=>{
                 const t=p.thumbs||[];
-                return `<div class="stack-container" onclick="openProject('${p.id}')">${isAdmin?`<div onclick="deleteProject('${p.id}',event)" style="position:absolute;top:-5px;right:-5px;z-index:100;color:#ff4d4d;background:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.2)">×</div>`:''}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;
+                return `<div class="stack-container" onclick="openProject('${p.id}')">${isAdmin?`<div onclick="deleteProject('${p.id}',event)" style="position:absolute;top:-5px;right:-5px;z-index:100;color:#ff4d4d;background:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.2)">×</div>`:''}<div class="neural-stack"><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;
             }).join('');
         }
         if(lvl===4){
-            vp.innerHTML=''; panX = 0; panY = 0; zoom = 1; updateViewport();
+            vp.innerHTML=''; panX=0; panY=0; zoom=1; updateViewport();
             (portfolio_data[currentProj.id].layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h));
+            setTimeout(() => {
+                if(vp.children.length){
+                    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+                    Array.from(vp.children).forEach(el=>{const ex=parseInt(el.style.left), ey=parseInt(el.style.top); minX=Math.min(minX,ex); minY=Math.min(minY,ey); maxX=Math.max(maxX,ex+el.offsetWidth); maxY=Math.max(maxY,ey+el.offsetHeight);});
+                    const pad=150, cW=maxX-minX+pad*2, cH=maxY-minY+pad*2;
+                    zoom=Math.min(window.innerWidth/cW, window.innerHeight/cH, 1);
+                    panX=(window.innerWidth-(maxX+minX)*zoom)/2; panY=(window.innerHeight-(maxY+minY)*zoom)/2; updateViewport();
+                }
+            }, 150);
             document.getElementById('lvl4Title').innerText=portfolio_data[currentProj.id].title;
             document.getElementById('lvl4CatTag').innerText=currentCat.toUpperCase();
         }
@@ -250,21 +240,26 @@
         document.getElementById('backBtnContainer').classList.toggle('show', lvl>1);
     }
 
-    // --- 基础逻辑 ---
+    // --- 基础支持 ---
+    function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
+    bd.onmousedown = (e) => { if(currentLvl===4 && (e.button===1 || e.target===bd || e.target===vp)) { isPanning=true; startX=e.clientX-panX; startY=e.clientY-panY; e.preventDefault(); }};
+    window.onmousemove = (e) => { 
+        if(isPanning) { panX=e.clientX-startX; panY=e.clientY-startY; updateViewport(); }
+        else if(isDragging && dragTarget && !isResizing) { dragTarget.style.left=(e.clientX/zoom)-startX+"px"; dragTarget.style.top=(e.clientY/zoom)-startY+"px"; }
+        else if(isResizing && dragTarget) { dragTarget.style.width=Math.max(50, startW+(e.clientX-startX)/zoom)+"px"; }
+    };
+    window.onmouseup = () => { if(isDragging||isResizing) saveToCloud(); isDragging=isResizing=isPanning=false; };
     async function initSystem() {
         try { const res=await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`); if(res.ok){ const json=await res.json(); portfolio_data=JSON.parse(decodeURIComponent(escape(atob(json.content)))); }} catch(e){}
         document.getElementById('loading-bar').style.width="100%"; setTimeout(()=>document.getElementById('loading-screen').style.display="none",500);
     }
-    async function saveToCloud() { /* 云端保存逻辑，使用 CONFIG 里的 Token */ }
+    async function saveToCloud() { /* 保持之前的 GitHub 保存逻辑 */ }
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){ const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){ localStorage.setItem('gh_token',t); isAdmin=true; document.getElementById('adminControls').style.display='flex'; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl); }}}
     function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); m.smX+=(m.x-m.smX)*0.08; m.smY+=(m.y-m.smY)*0.08; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
     
     window.onload = () => { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); animate(); initSystem(); };
-    window.onresize = () => { cvs.width=window.innerWidth; cvs.height=window.innerHeight; if(currentLvl===4) updateViewport(); };
-    
-    document.getElementById('dynamicNav').innerHTML=['Architecture','Computational','Interest','Photo','About'].map((c, i)=>`<a style="--i:${i+1}" onclick="${c==='About'?'openAboutPage()':`showLevel(3,'${c}')`}">${c}</a>`).join('');
-    document.getElementById('dynamicNav').onclick = () => { if(window.innerWidth<=768) toggleMenu(); };
+    document.getElementById('dynamicNav').innerHTML=['Architecture','Computational','Interest','Photo','About'].map(c=>`<a onclick="${c==='About'?'openAboutPage()':`showLevel(3,'${c}')`}">${c}</a>`).join('');
 </script>
 </body>
 </html>
