@@ -16,7 +16,7 @@
         .nav-links a { text-decoration: none; color: #999; font-size: 0.6rem; text-transform: uppercase; cursor: pointer; transition: 0.3s; }
         .nav-links a:hover { color: #000; }
 
-        /* 汉堡菜单与堆叠特效 */
+        /* 汉堡菜单堆叠特效 */
         .menu-toggle { display: none; width: 25px; height: 18px; position: relative; cursor: pointer; z-index: 6000; }
         .menu-toggle span { display: block; width: 100%; height: 1px; background: #000; position: absolute; transition: 0.3s; }
         .menu-toggle span:nth-child(2) { top: 8px; }
@@ -42,30 +42,33 @@
             .nav-links.open a:nth-child(3) { transition-delay: 0.2s; }
             .nav-links.open a:nth-child(4) { transition-delay: 0.25s; }
             .nav-links.open a:nth-child(5) { transition-delay: 0.3s; }
-            .back-btn-container { left: 20px !important; bottom: 20px !important; }
         }
 
-        #lvl1 h1 { font-size: 3.5rem; font-weight: 100; letter-spacing: 20px; margin-bottom: 20px; text-transform: uppercase; color: #000; }
-        #lvl1 p { font-size: 0.55rem; color: #aaa; letter-spacing: 8px; text-transform: uppercase; margin-top: 0; }
-        .neural-grid { display: flex; gap: 70px; justify-content: center; align-items: center; width: 95%; flex-wrap: wrap; padding: 20px; }
-        .stack-container { position: relative; width: 160px; height: 220px; cursor: pointer; text-align: center; perspective: 1000px; }
-        .neural-stack { position: relative; width: 140px; height: 140px; transform-style: preserve-3d; margin: 0 auto; transition: transform 0.6s; }
+        /* 堆叠动效修正 */
+        .stack-container { position: relative; width: 160px; height: 220px; cursor: pointer; text-align: center; perspective: 1000px; transition: 0.5s cubic-bezier(0.23, 1, 0.32, 1); }
+        .neural-stack { position: relative; width: 140px; height: 140px; transform-style: preserve-3d; margin: 0 auto; }
         .neural-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; border: 1px solid rgba(0,0,0,0.05); overflow: hidden; transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 5px 15px rgba(0,0,0,0.02); display: flex; align-items: center; justify-content: center; }
-        .layer-1 { z-index: 5; } .layer-2 { z-index: 4; transform: translate(10px, -10px); opacity: 0.6; }
-        .stack-container:hover .layer-1 { transform: translate(-15px, 15px) rotate(-3deg); box-shadow: 15px 15px 30px rgba(0,0,0,0.1); }
-        .stack-label { margin-top: 35px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; }
+        .neural-layer img { width: 100%; height: 100%; object-fit: cover; }
         
+        .layer-1 { z-index: 5; } 
+        .layer-2 { z-index: 4; transform: translate(8px, -8px); opacity: 0.7; }
+        .layer-3 { z-index: 3; transform: translate(16px, -16px); opacity: 0.4; }
+
+        .stack-container:hover .layer-1 { transform: translate(-15px, 15px) rotate(-3deg); box-shadow: 15px 15px 30px rgba(0,0,0,0.1); }
+        .stack-container:hover .layer-2 { transform: translate(-5px, 5px) rotate(-1.5deg); opacity: 1; }
+        .stack-container:hover .layer-3 { transform: translate(5px, -5px); opacity: 0.8; }
+        .stack-label { margin-top: 35px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; }
+        .stack-container:hover .stack-label { transform: translateY(5px); color: #000; }
+
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
         #lvl4 { background: #fbfbfb; z-index: 6000; display: none; overflow: hidden; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
-        .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
-        .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
-        .crop-container { width: 100%; height: 100%; overflow: hidden; }
-        .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
-        .resize-handle { position: absolute; width: 14px; height: 14px; background: #4285F4; right: -7px; bottom: -7px; cursor: nwse-resize; border-radius: 50%; z-index: 1001; }
+        
+        /* 媒体删除按钮 */
+        .miro-del-btn { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; background: #ff4d4d; color: #fff; border-radius: 50%; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 14px; z-index: 10; font-weight: bold; }
+        .miro-item:hover .miro-del-btn { display: flex; }
 
-        /* 上传 UI */
         #upload-progress-box { position: fixed; bottom: 30px; right: 30px; background: #fff; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); border-radius: 8px; z-index: 10000; display: none; min-width: 200px; }
         .prog-bar-inner { height: 2px; background: #000; width: 0%; transition: width 0.3s; }
 
@@ -90,7 +93,7 @@
 </nav>
 
 <div id="backBtnContainer" class="back-btn-container">
-    <div id="addProjBtn" class="back-btn" style="display:none; color: #34A853; margin-bottom:10px;" onclick="createNewProject()">+ NEW PROJECT</div>
+    <div id="addProjBtn" class="back-btn" style="display:none; color: #34A853; margin-bottom:10px; font-weight: bold;" onclick="createNewProject()">+ NEW PROJECT</div>
     <div class="back-btn" onclick="handleBack()">← BACK</div>
 </div>
 
@@ -113,7 +116,7 @@
 </div>
 
 <div id="upload-progress-box">
-    <div style="font-size: 0.45rem; letter-spacing: 2px; margin-bottom: 10px;" class="prog-text">UPLOADING: 0%</div>
+    <div class="prog-text" style="font-size: 0.45rem; letter-spacing: 2px; margin-bottom: 10px;">UPLOADING: 0%</div>
     <div style="width: 100%; height: 2px; background: #eee;"><div class="prog-bar-inner"></div></div>
 </div>
 
@@ -122,11 +125,11 @@
 <script>
     const CONFIG = { owner: 'chenming-ctrl', repo: 'my-portfolio-data', path: 'portfolio_data.json', get token() { return (localStorage.getItem('gh_token') || '').trim(); } };
     let portfolio_data = {}, isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
-    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
-    let dragTarget = null, startX, startY, startW;
+    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, isSelecting = false;
+    let dragTarget = null, startX, startY, startW, selectBox = null, selStartX, selStartY;
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
 
-    // --- 粒子系统回溯 ---
+    // --- 粒子系统 ---
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
@@ -142,63 +145,60 @@
         }
     }
 
-    // --- About 与 路径隔离 ---
+    // --- 框选功能 ---
+    bd.onmousedown = (e) => {
+        if(currentLvl === 4) {
+            if(e.button === 1 || e.target === vp || e.target === bd) {
+                if(e.button === 0 && !isDragging) {
+                    isSelecting = true; selStartX = e.clientX; selStartY = e.clientY;
+                    selectBox = document.createElement('div');
+                    selectBox.style.cssText = `position:fixed; border:1px dashed #4285F4; background:rgba(66,133,244,0.1); z-index:9999; pointer-events:none;`;
+                    document.body.appendChild(selectBox);
+                } else {
+                    isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault();
+                }
+            }
+        }
+    };
+
+    // --- 导航与项目 ---
     function toggleMenu() { document.getElementById('dynamicNav').classList.toggle('open'); document.getElementById('menuToggle').classList.toggle('open'); }
     function openAboutPage() {
-        const aboutId = 'about_section';
-        if(!portfolio_data[aboutId]) portfolio_data[aboutId] = { title: "ABOUT CHENMING", layout: [{ html: `<div contenteditable="true" style="padding:40px; font-size:1.1rem; line-height:1.8; font-weight:300; max-width:600px; outline:none;">Design & Architecture bio here...</div>`, x: "100px", y: "150px", w: "80vw", h: "auto" }], thumbs: [] };
-        currentProj = { id: aboutId, ...portfolio_data[aboutId] };
-        currentCat = 'About'; showLevel(4); 
+        currentProj = { id: 'about_section', ...portfolio_data['about_section'] };
+        currentCat = 'About'; showLevel(4);
     }
     function handleBack() {
         if (currentProj && currentProj.id === 'about_section') { showLevel(2); return; }
         if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1);
     }
 
-    // --- 上传 UI 回退 ---
-    async function handleUpload(event) {
-        const files = Array.from(event.target.files);
-        const progressBox = document.getElementById('upload-progress-box');
-        const progressBar = progressBox.querySelector('.prog-bar-inner');
-        const progressText = progressBox.querySelector('.prog-text');
-
-        for(const file of files) {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                progressBox.style.display = 'block';
-                let prog = 0;
-                const timer = setInterval(() => { prog += (95 - prog) * 0.1; progressBar.style.width = prog + '%'; progressText.innerText = `UPLOADING: ${Math.round(prog)}%`; }, 200);
-
-                const content = e.target.result;
-                const html = file.type.startsWith('image') ? `<img src="${content}">` : `<video src="${content}" autoplay loop muted></video>`;
-                createMiroItem(html, "100px", "100px");
-                await saveToCloud();
-
-                clearInterval(timer); progressBar.style.width = '100%'; progressText.innerText = 'COMPLETE 100%';
-                setTimeout(() => { progressBox.style.display = 'none'; progressBar.style.width = '0%'; }, 1000);
-            };
-            reader.readAsDataURL(file);
-        }
-    }
-
-    // --- 渲染逻辑 ---
+    // --- 核心渲染逻辑 ---
     function renderCatGrid() {
         const cats=['Architecture','Computational','Interest','Photo','About'];
         document.getElementById('catGrid').innerHTML=cats.map(cat=>{
             const isAbout = cat === 'About';
-            const ps=Object.keys(portfolio_data).filter(id=> isAbout ? id==='about_section' : (id.startsWith(cat[0].toLowerCase()) && id!=='about_section'));
-            const t=(ps.length&&portfolio_data[ps[0]].thumbs)?portfolio_data[ps[0]].thumbs[0]:'';
-            return `<div class="stack-container" onclick="${isAbout ? 'openAboutPage()' : `showLevel(3, '${cat}')`}"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}" style="width:100%;height:100%;object-fit:cover;">` : `<span style="font-size:10px;color:#ccc">${cat[0]}</span>`}</div></div><div class="stack-label">${cat}</div></div>`;
+            const projIds = Object.keys(portfolio_data).filter(id => isAbout ? id === 'about_section' : (id.startsWith(cat[0].toLowerCase()) && id !== 'about_section'));
+            let thumbs = []; projIds.slice(0, 3).forEach(id => { if (portfolio_data[id].thumbs) thumbs.push(portfolio_data[id].thumbs[0]); });
+            return `<div class="stack-container" onclick="${isAbout ? 'openAboutPage()' : `showLevel(3, '${cat}')`}">
+                <div class="neural-stack">
+                    <div class="neural-layer layer-3">${thumbs[2] ? `<img src="${thumbs[2]}">` : ''}</div>
+                    <div class="neural-layer layer-2">${thumbs[1] ? `<img src="${thumbs[1]}">` : ''}</div>
+                    <div class="neural-layer layer-1">${thumbs[0] ? `<img src="${thumbs[0]}">` : `<span style="font-size:10px;color:#ccc">${cat[0]}</span>`}</div>
+                </div><div class="stack-label">${cat}</div></div>`;
         }).join('');
     }
 
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div'); d.className = 'miro-item'; 
         d.style.left = x; d.style.top = y; d.style.width = w; d.style.height = h;
-        d.innerHTML = `<div class="crop-container">${content}</div><div class="resize-handle"></div>`;
+        d.innerHTML = `<div class="crop-container">${content}</div><div class="resize-handle"></div><div class="miro-del-btn">×</div>`;
+        
         const rh = d.querySelector('.resize-handle'); rh.style.display = isAdmin ? 'block' : 'none';
+        const del = d.querySelector('.miro-del-btn');
+        del.onclick = (e) => { e.stopPropagation(); d.remove(); saveToCloud(); };
+
         d.onmousedown = (e) => {
-            if(!isAdmin || e.button === 1) return;
+            if(!isAdmin || e.button !== 0) return;
             e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
             d.classList.add('selected'); vp.appendChild(d); isDragging = true; dragTarget = d;
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
@@ -213,10 +213,14 @@
         document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none';
         if(lvl===2) renderCatGrid();
         if(lvl===3) {
+            document.getElementById('addProjBtn').style.display = isAdmin ? 'block' : 'none';
             const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase()) && id!=='about_section').map(id=>({id,...portfolio_data[id]}));
             document.getElementById('projGrid').innerHTML=ps.map(p=>{
                 const t=p.thumbs||[];
-                return `<div class="stack-container" onclick="openProject('${p.id}')">${isAdmin?`<div onclick="deleteProject('${p.id}',event)" style="position:absolute;top:-5px;right:-5px;z-index:100;color:#ff4d4d;background:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,0.2)">×</div>`:''}<div class="neural-stack"><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;
+                return `<div class="stack-container" onclick="openProject('${p.id}')">
+                    ${isAdmin?`<div class="del-btn" onclick="deleteProject('${p.id}',event)" style="position:absolute;top:-10px;right:-10px;z-index:100;color:#ff4d4d;background:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-weight:bold;">×</div>`:''}
+                    <div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div>
+                    <div class="stack-label">${p.title}</div></div>`;
             }).join('');
         }
         if(lvl===4){
@@ -240,20 +244,22 @@
         document.getElementById('backBtnContainer').classList.toggle('show', lvl>1);
     }
 
-    // --- 基础支持 ---
+    // --- 全局辅助 ---
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
-    bd.onmousedown = (e) => { if(currentLvl===4 && (e.button===1 || e.target===bd || e.target===vp)) { isPanning=true; startX=e.clientX-panX; startY=e.clientY-panY; e.preventDefault(); }};
     window.onmousemove = (e) => { 
         if(isPanning) { panX=e.clientX-startX; panY=e.clientY-startY; updateViewport(); }
         else if(isDragging && dragTarget && !isResizing) { dragTarget.style.left=(e.clientX/zoom)-startX+"px"; dragTarget.style.top=(e.clientY/zoom)-startY+"px"; }
         else if(isResizing && dragTarget) { dragTarget.style.width=Math.max(50, startW+(e.clientX-startX)/zoom)+"px"; }
+        else if(isSelecting && selectBox) {
+            const x=Math.min(e.clientX, selStartX), y=Math.min(e.clientY, selStartY);
+            selectBox.style.left=x+'px'; selectBox.style.top=y+'px'; selectBox.style.width=Math.abs(e.clientX-selStartX)+'px'; selectBox.style.height=Math.abs(e.clientY-selStartY)+'px';
+        }
     };
-    window.onmouseup = () => { if(isDragging||isResizing) saveToCloud(); isDragging=isResizing=isPanning=false; };
-    async function initSystem() {
-        try { const res=await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`); if(res.ok){ const json=await res.json(); portfolio_data=JSON.parse(decodeURIComponent(escape(atob(json.content)))); }} catch(e){}
-        document.getElementById('loading-bar').style.width="100%"; setTimeout(()=>document.getElementById('loading-screen').style.display="none",500);
-    }
-    async function saveToCloud() { /* 保持之前的 GitHub 保存逻辑 */ }
+    window.onmouseup = () => { if(isSelecting && selectBox) { selectBox.remove(); selectBox=null; } if(isDragging||isResizing) saveToCloud(); isDragging=isResizing=isPanning=isSelecting=false; };
+    async function createNewProject() { if(!isAdmin)return; const n=prompt("Name:"); if(n){ const id=currentCat[0].toLowerCase()+'_'+Date.now(); portfolio_data[id]={title:n, layout:[], thumbs:[]}; await saveToCloud(); showLevel(3); }}
+    async function deleteProject(id, e) { e.stopPropagation(); if(isAdmin && confirm("Delete?")){ delete portfolio_data[id]; await saveToCloud(); showLevel(3); }}
+    async function initSystem() { try { const res=await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`); if(res.ok){ const json=await res.json(); portfolio_data=JSON.parse(decodeURIComponent(escape(atob(json.content)))); }} catch(e){} document.getElementById('loading-bar').style.width="100%"; setTimeout(()=>document.getElementById('loading-screen').style.display="none",500); }
+    async function saveToCloud() { /* GitHub Save Logic Here */ }
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){ const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){ localStorage.setItem('gh_token',t); isAdmin=true; document.getElementById('adminControls').style.display='flex'; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl); }}}
     function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); m.smX+=(m.x-m.smX)*0.08; m.smY+=(m.y-m.smY)*0.08; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
