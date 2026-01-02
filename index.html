@@ -29,6 +29,10 @@
         .stack-container:hover .layer-3 { transform: translate(22px, -22px); opacity: 0.5; }
         .stack-label { margin-top: 35px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; }
         .stack-container:hover .stack-label { color: #000; letter-spacing: 5px; }
+        
+        .delete-proj-btn { position: absolute; top: -10px; right: -10px; width: 24px; height: 24px; background: #ff4335; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; z-index: 100; opacity: 0; transition: 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .stack-container:hover .delete-proj-btn { opacity: 1; }
+
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
         #lvl4 { background: #fbfbfb; z-index: 6000; display: none; }
@@ -39,12 +43,17 @@
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
+        
+        .guide-line { position: absolute; background: rgba(66, 133, 244, 0.4); pointer-events: none; z-index: 5000; display: none; }
+        #guide-x { width: 1px; height: 20000px; top: -10000px; border-left: 1px dashed #4285F4; }
+        #guide-y { height: 1px; width: 20000px; left: -10000px; border-top: 1px dashed #4285F4; }
+
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
         .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; padding: 10px; }
-        #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 180px; z-index: 9999; pointer-events: none; }
+        #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 220px; z-index: 9999; pointer-events: none; }
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
     </style>
@@ -73,9 +82,13 @@
         <div id="lvl4CatTag" style="font-size: 0.45rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px;">CATEGORY</div>
         <div id="lvl4Title" style="pointer-events: auto; outline:none; font-size: 1.5rem; font-weight: 200;" contenteditable="true" onblur="saveToCloud()">PROJECT TITLE</div>
     </div>
-    <div id="miro-viewport"></div>
+    <div id="miro-viewport">
+        <div id="guide-x" class="guide-line"></div>
+        <div id="guide-y" class="guide-line"></div>
+    </div>
     <div class="miro-ui" id="adminControls" style="display:none;">
         <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ MEDIA</button>
+        <button class="ui-btn" onclick="addLink()">+ LINK</button>
         <button class="ui-btn" onclick="addText()">+ TEXT</button>
     </div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
@@ -96,22 +109,22 @@
 
     // --- 核心逻辑 ---
     function saveHistory() {
-        const state = Array.from(vp.children).map(el => ({
+        const state = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({
             html: el.querySelector('.crop-container').innerHTML,
             x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height
         }));
         historyStack.push(JSON.stringify(state));
         if(historyStack.length > 30) historyStack.shift();
     }
+    
     function undo() {
         if(historyStack.length <= 1) return;
         historyStack.pop();
         const prevState = JSON.parse(historyStack[historyStack.length - 1]);
-        vp.innerHTML = '';
+        Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
         prevState.forEach(it => createMiroItem(it.html, it.x, it.y, it.w, it.h));
     }
 
-    // 键盘绑定
     window.addEventListener('keydown', e => {
         if(currentLvl !== 4) return;
         if((e.key === "Delete" || e.key === "Backspace") && !isEditingText()) {
@@ -122,12 +135,11 @@
     });
     function isEditingText() { return document.activeElement && document.activeElement.contentEditable === "true"; }
 
-    // 吸附
     const SNAP = 10;
     function getSnappedPos(target, nx, ny) {
         let sx = nx, sy = ny;
         const tw = target.offsetWidth, th = target.offsetHeight;
-        const others = Array.from(vp.children).filter(i => i !== target);
+        const others = Array.from(vp.children).filter(i => i !== target && i.classList.contains('miro-item'));
         others.forEach(i => {
             const ix = parseInt(i.style.left), iy = parseInt(i.style.top), iw = i.offsetWidth, ih = i.offsetHeight;
             [0, 10].forEach(gap => {
@@ -140,7 +152,6 @@
         return {x: sx, y: sy};
     }
 
-    // 粒子系统
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
@@ -155,15 +166,17 @@
         }
     }
 
-    // 画布项
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
         d.innerHTML = `<div class="crop-container">${content}</div><div class="resize-handle"></div>`;
         const edit = d.querySelector('[contenteditable]');
+        
         d.onmousedown = (e) => {
             if(!isAdmin || e.button === 1) return;
-            if(edit && document.activeElement === edit) { e.stopPropagation(); return; }
+            // 锁定逻辑：如果正在编辑文字，禁止拖拽
+            if (e.target.contentEditable === "true" || (edit && document.activeElement === edit)) return;
+
             if(e.button === 0) {
                 e.stopPropagation();
                 document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
@@ -173,29 +186,37 @@
                 startY = (e.clientY/zoom) - parseInt(d.style.top);
             }
         };
-        if(edit) { d.ondblclick = () => { edit.focus(); isDragging = false; }; edit.onblur = () => { saveHistory(); saveToCloud(); }; }
+        if(edit) { 
+            d.ondblclick = (e) => { e.stopPropagation(); edit.focus(); isDragging = false; }; 
+            edit.onblur = () => { saveHistory(); saveToCloud(); }; 
+        }
         const rh = d.querySelector('.resize-handle');
         rh.onmousedown = (e) => { e.stopPropagation(); e.preventDefault(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
     }
 
-    // 鼠标移动
     window.onmousemove = (e) => {
         if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
         else if(isDragging && dragTarget && !isResizing) {
             let rx = (e.clientX/zoom) - startX, ry = (e.clientY/zoom) - startY;
             const sn = getSnappedPos(dragTarget, rx, ry);
             dragTarget.style.left = sn.x + "px"; dragTarget.style.top = sn.y + "px";
+            const gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
+            gx.style.display = gy.style.display = 'block';
+            gx.style.left = dragTarget.style.left; gy.style.top = dragTarget.style.top;
         } else if(isResizing && dragTarget) {
             dragTarget.style.width = Math.max(50, startW + (e.clientX - startX)/zoom) + "px";
         }
     };
-    window.onmouseup = () => { if(isDragging || isResizing) { saveHistory(); saveToCloud(); } isDragging = isResizing = isPanning = false; };
+    window.onmouseup = () => { 
+        if(isDragging || isResizing) { saveHistory(); saveToCloud(); } 
+        isDragging = isResizing = isPanning = false; 
+        document.getElementById('guide-x').style.display = 'none';
+        document.getElementById('guide-y').style.display = 'none';
+    };
 
-    // 中键平移
     bd.onmousedown = (e) => { if(currentLvl === 4 && (e.button === 1 || e.target === bd || e.target === vp)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); } };
 
-    // 缩放逻辑
     bd.addEventListener('wheel', e => {
         if(currentLvl === 4) {
             e.preventDefault();
@@ -209,32 +230,44 @@
 
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
 
-    // 上传流程升级
+    // --- 增强版上传逻辑 ---
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
         const fs = Array.from(e.target.files);
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
+        
         fs.forEach(async (file, idx) => {
             const taskId = "task_"+Date.now()+"_"+idx;
+            const originalSizeKB = (file.size / 1024).toFixed(1);
+            uploadQueue.tasks[taskId] = {fileName:file.name, progress:0, info: 'Compressing...'}; uploadQueue.updateUI();
+            
             const rx = (dx+(idx*30))+'px', ry = (dy+(idx*30))+'px';
             const isImg = file.type.includes('image');
             
-            // 先读本地预览
             const r = new FileReader();
             r.onload = async (re) => {
-                const preHtml = isImg ? `<img src="${re.target.result}" style="opacity:0.5; filter:grayscale(1);">` : `<div style="padding:20px; font-size:10px;">VIDEO...</div>`;
+                // 即时预览：使用 FileReader 读取的 Base64 立即显示，解决上传时的“消失感”
+                const localBase64 = re.target.result;
+                const preHtml = isImg ? `<img src="${localBase64}">` : `<video src="${localBase64}" autoplay loop muted playsinline></video>`;
                 const item = createMiroItem(preHtml, rx, ry, "300px");
-                uploadQueue.tasks[taskId] = {fileName:file.name, progress:0}; uploadQueue.updateUI();
                 
+                // 执行压缩
                 const b64 = isImg ? await compress(file) : await toBase64(file);
+                const compressedSizeKB = (atob(b64).length / 1024).toFixed(1);
+                const ratio = Math.round((1 - compressedSizeKB / originalSizeKB) * 100);
+                uploadQueue.tasks[taskId].info = isImg ? `${originalSizeKB}KB ➔ ${compressedSizeKB}KB (-${ratio}%)` : `${originalSizeKB}KB`;
+                uploadQueue.updateUI();
+
                 const xhr = new XMLHttpRequest();
                 xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${taskId}_${file.name}`);
                 xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
                 xhr.upload.onprogress = (ev) => { uploadQueue.tasks[taskId].progress = Math.round((ev.loaded/ev.total)*100); uploadQueue.updateUI(); };
                 xhr.onload = async () => {
                     if(xhr.status === 201 || xhr.status === 200){
-                        const url = JSON.parse(xhr.responseText).content.download_url;
-                        item.querySelector('.crop-container').innerHTML = isImg ? `<img src="${url}">` : `<video src="${url}" autoplay loop muted playsinline></video>`;
+                        const remoteUrl = JSON.parse(xhr.responseText).content.download_url;
+                        // 静默替换：将本地预览图替换为远程链接，用户无感知
+                        const mediaEl = item.querySelector('img, video');
+                        if(mediaEl) mediaEl.src = remoteUrl;
                         saveHistory(); saveToCloud();
                     }
                     delete uploadQueue.tasks[taskId]; uploadQueue.updateUI();
@@ -245,7 +278,6 @@
         });
     }
 
-    // 后端同步
     async function initSystem() {
         try {
             const res = await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`, isAdmin && CONFIG.token ? {headers:{'Authorization':`token ${CONFIG.token}`}}: {});
@@ -255,30 +287,81 @@
         setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; }, 500);
         if(currentLvl === 2) renderCatGrid();
     }
-    const uploadQueue = { tasks: {}, updateUI() { const list = document.getElementById('global-upload-list'); list.innerHTML = Object.values(this.tasks).map(t => `<div style="background:white; padding:10px; border-radius:8px; margin-bottom:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); border-left:4px solid #34A853;"><div style="font-size:10px;">${t.fileName}</div><div style="height:3px; background:#eee; width:100%; margin-top:5px;"><div style="width:${t.progress}%; height:100%; background:#34A853;"></div></div></div>`).join(''); } };
-    async function compress(file) { return new Promise(res => { const r=new FileReader(); r.readAsDataURL(file); r.onload=(e)=>{const img=new Image(); img.src=e.target.result; img.onload=()=>{const canvas=document.createElement('canvas'); let w=img.width, h=img.height; if(w>1200){h=(1200/w)*h; w=1200;} canvas.width=w; canvas.height=h; canvas.getContext('2d').drawImage(img,0,0,w,h); res(canvas.toDataURL('image/jpeg',0.7).split(',')[1]);}}}); }
+
+    const uploadQueue = { 
+        tasks: {}, 
+        updateUI() { 
+            const list = document.getElementById('global-upload-list'); 
+            list.innerHTML = Object.values(this.tasks).map(t => `
+                <div style="background:white; padding:10px; border-radius:8px; margin-bottom:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); border-left:4px solid #34A853;">
+                    <div style="font-size:10px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.fileName}</div>
+                    <div style="font-size:9px; color:#888; margin:4px 0;">${t.info || ''}</div>
+                    <div style="height:3px; background:#eee; width:100%;"><div style="width:${t.progress}%; height:100%; background:#34A853; transition:0.3s;"></div></div>
+                </div>`).join(''); 
+        } 
+    };
+
+    async function compress(file) { return new Promise(res => { const r=new FileReader(); r.readAsDataURL(file); r.onload=(e)=>{const img=new Image(); img.src=e.target.result; img.onload=()=>{const canvas=document.createElement('canvas'); let w=img.width, h=img.height; if(w>1500){h=(1500/w)*h; w=1500;} canvas.width=w; canvas.height=h; canvas.getContext('2d').drawImage(img,0,0,w,h); res(canvas.toDataURL('image/jpeg',0.8).split(',')[1]);}}}); }
     function toBase64(file) { return new Promise(res=>{const fr=new FileReader(); fr.onload=()=>res(fr.result.split(',')[1]); fr.readAsDataURL(file);}); }
-    async function saveToCloud() { if(!isAdmin||!currentProj) return; const items=Array.from(vp.children).map(el=>({html:el.querySelector('.crop-container').innerHTML, x:el.style.left, y:el.style.top, w:el.style.width, h:el.style.height})); portfolio_data[currentProj.id].layout=items; portfolio_data[currentProj.id].title=document.getElementById('lvl4Title').innerText; portfolio_data[currentProj.id].thumbs=items.filter(it=>it.html.includes('<img')).slice(0,3).map(it=>it.html.match(/src="([^"]+)"/)?.[1]); const url=`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`; const getSha=await fetch(url, {headers:{'Authorization':`token ${CONFIG.token}`}}); const sha=(await getSha.json()).sha; await fetch(url, {method:'PUT', headers:{'Authorization':`token ${CONFIG.token}`}, body:JSON.stringify({message:"AutoUpdate", content:btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2)))), sha})}); }
-    function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?portfolio_data[ps[0]].thumbs[0]:''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
-    function renderProjGrid() { const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); document.getElementById('projGrid').innerHTML=ps.map(p=>{const t=p.thumbs||[]; return `<div class="stack-container" onclick="openProject('${p.id}')"><div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;}).join(''); }
     
-    // showLevel 升级：自动最佳视角
+    async function saveToCloud() { 
+        if(!isAdmin) return; 
+        if(currentLvl === 4 && currentProj) {
+            const items=Array.from(vp.children).filter(el=>el.classList.contains('miro-item')).map(el=>({html:el.querySelector('.crop-container').innerHTML, x:el.style.left, y:el.style.top, w:el.style.width, h:el.style.height})); 
+            portfolio_data[currentProj.id].layout=items; 
+            portfolio_data[currentProj.id].title=document.getElementById('lvl4Title').innerText; 
+            portfolio_data[currentProj.id].thumbs=items.filter(it=>it.html.includes('<img')).slice(0,3).map(it=>it.html.match(/src="([^"]+)"/)?.[1]);
+        }
+        const url=`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`; 
+        const getSha=await fetch(url, {headers:{'Authorization':`token ${CONFIG.token}`}}); 
+        const sha=(await getSha.json()).sha; 
+        await fetch(url, {method:'PUT', headers:{'Authorization':`token ${CONFIG.token}`}, body:JSON.stringify({message:"Update", content:btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2)))), sha})}); 
+    }
+
+    async function deleteProject(id, title) {
+        const confirmName = prompt(`⚠️ 确定删除项目 [ ${title} ] 吗？\n输入项目全名确认：`);
+        if (confirmName === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); }
+    }
+
+    function addLink() {
+        const url = prompt("Link (YouTube, Bilibili):");
+        if (!url) return;
+        let embedUrl = url;
+        if (url.includes('bilibili.com')) {
+            const bvid = url.match(/BV[a-zA-Z0-9]+/)?.[0];
+            if (bvid) embedUrl = `//player.bilibili.com/player.html?bvid=${bvid}&page=1&high_quality=1`;
+        } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            const yid = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/)?.[1];
+            if (yid) embedUrl = `https://www.youtube.com/embed/${yid}`;
+        }
+        const html = `<iframe src="${embedUrl}" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true" style="width:100%; height:100%; pointer-events:auto;"></iframe>`;
+        createMiroItem(html, '400px', '400px', '480px', '270px');
+        saveHistory(); saveToCloud();
+    }
+
+    function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?portfolio_data[ps[0]].thumbs[0]:''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
+    function renderProjGrid() { 
+        const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); 
+        document.getElementById('projGrid').innerHTML=ps.map(p=>{
+            const t=p.thumbs||[]; 
+            const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : '';
+            return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;
+        }).join(''); 
+    }
+    
     function showLevel(lvl, cat = '') {
         currentLvl=lvl; if(cat)currentCat=cat; 
         document.querySelectorAll('.view-layer').forEach(el=>el.classList.remove('active')); 
         document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none'; 
-        if(lvl===2)renderCatGrid(); 
-        if(lvl===3)renderProjGrid(); 
+        if(lvl===2)renderCatGrid(); if(lvl===3)renderProjGrid(); 
         if(lvl===4){
-            vp.innerHTML=''; 
-            const layout = portfolio_data[currentProj.id].layout||[];
-            layout.forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); 
-            
-            // 自动缩放适配逻辑
+            Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
+            (portfolio_data[currentProj.id].layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); 
             setTimeout(() => {
-                if(vp.children.length > 0) {
+                const items = Array.from(vp.children).filter(el => el.classList.contains('miro-item'));
+                if(items.length > 0) {
                     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    Array.from(vp.children).forEach(el => {
+                    items.forEach(el => {
                         const ex = parseInt(el.style.left), ey = parseInt(el.style.top);
                         minX = Math.min(minX, ex); minY = Math.min(minY, ey);
                         maxX = Math.max(maxX, ex + el.offsetWidth); maxY = Math.max(maxY, ey + el.offsetHeight);
@@ -288,8 +371,7 @@
                     panX = (window.innerWidth - cW * zoom) / 2 - (minX - 100) * zoom;
                     panY = (window.innerHeight - cH * zoom) / 2 - (minY - 100) * zoom;
                 } else { panX = 0; panY = 0; zoom = 1; }
-                updateViewport();
-                saveHistory();
+                updateViewport(); saveHistory();
             }, 50);
             document.getElementById('lvl4Title').innerText=portfolio_data[currentProj.id].title;
             document.getElementById('lvl4CatTag').innerText=currentCat;
@@ -299,6 +381,14 @@
         document.getElementById('mainNav').classList.toggle('visible', lvl>1); 
         document.getElementById('backBtnContainer').classList.toggle('show', lvl>1); 
         document.getElementById('addProjBtn').style.display=(lvl===3&&isAdmin)?'block':'none'; 
+    }
+
+    function createNewProject() {
+        const title = prompt("New Project Title:");
+        if(!title) return;
+        const id = currentCat[0].toLowerCase() + Date.now();
+        portfolio_data[id] = { title, layout: [], thumbs: [] };
+        saveToCloud().then(() => renderProjGrid());
     }
 
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
