@@ -37,16 +37,31 @@
         .view-layer.active { opacity: 1; visibility: visible; }
         #lvl4 { background: #fbfbfb; z-index: 6000; display: none; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
+        
+        /* 文字卡片样式 */
         .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
+        .miro-item.text-item { background: #f4f4f4; } /* Admin模式灰底 */
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
+        .miro-item.is-editing { background: #fff !important; cursor: text !important; user-select: text !important; }
+        .miro-item.is-editing .crop-container { pointer-events: auto !important; }
+
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
+        /* 参考线 */
         .guide-line { position: absolute; background: rgba(66, 133, 244, 0.4); pointer-events: none; z-index: 5000; display: none; }
         #guide-x { width: 1px; height: 20000px; top: -10000px; border-left: 1px dashed #4285F4; }
         #guide-y { height: 1px; width: 20000px; left: -10000px; border-top: 1px dashed #4285F4; }
+
+        /* 框选框 */
+        #selection-box { position: absolute; border: 1px dashed #4285F4; background: rgba(66, 133, 244, 0.1); pointer-events: none; display: none; z-index: 9999; }
+
+        /* 保存状态栏 */
+        #save-progress-bar { position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #eee; z-index: 10000; display: none; }
+        #save-progress-inner { width: 0%; height: 100%; background: #34A853; transition: 0.3s; }
+        #save-status-text { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 5px 15px; border-radius: 20px; font-size: 10px; z-index: 10000; display: none; letter-spacing: 1px; }
 
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
@@ -63,6 +78,10 @@
 <div id="loading-screen">
     <div style="width: 100px; height: 1px; background: #eee; position: relative; overflow: hidden;"><div id="loading-bar" style="width: 0%; height: 100%; background: #000; transition: 0.3s;"></div></div>
 </div>
+
+<div id="save-progress-bar"><div id="save-progress-inner"></div></div>
+<div id="save-status-text">READY</div>
+<div id="selection-box"></div>
 
 <div id="global-upload-list"></div>
 <div id="canvas-container"><canvas id="particleCanvas"></canvas></div>
@@ -90,6 +109,7 @@
         <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ MEDIA</button>
         <button class="ui-btn" onclick="addLink()">+ LINK</button>
         <button class="ui-btn" onclick="addText()">+ TEXT</button>
+        <button class="ui-btn" style="background: #34A853; color: white; border: none;" onclick="manualSave()">SAVE PROJECT</button>
     </div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
 </div>
@@ -103,16 +123,34 @@
 
     let portfolio_data = {}, isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
+    let isSelecting = false, selectStartX, selectStartY;
     let dragTarget = null, startX, startY, startW;
     let historyStack = [];
-    let isSaving = false, savePending = false; // 并发控制锁
+    let isSaving = false, savePending = false;
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
+
+    // 吸附检测函数
+    const SNAP = 10;
+    function getSnappedPos(target, nx, ny) {
+        let sx = nx, sy = ny;
+        const tw = target.offsetWidth, th = target.offsetHeight;
+        const others = Array.from(vp.children).filter(i => i !== target && i.classList.contains('miro-item'));
+        others.forEach(i => {
+            const ix = parseInt(i.style.left), iy = parseInt(i.style.top), iw = i.offsetWidth, ih = i.offsetHeight;
+            [0, 10].forEach(gap => {
+                if(Math.abs(nx - (ix+iw+gap)) < SNAP) sx = ix+iw+gap;
+                if(Math.abs((nx+tw) - (ix-gap)) < SNAP) sx = ix-tw-gap;
+                if(Math.abs(ny - (iy+ih+gap)) < SNAP) sy = iy+ih+gap;
+                if(Math.abs((ny+th) - (iy-gap)) < SNAP) sy = iy-th-gap;
+            });
+        });
+        return {x: sx, y: sy};
+    }
 
     async function saveToCloud() { 
         if(!isAdmin) return; 
         if (isSaving) { savePending = true; return; }
         isSaving = true;
-
         try {
             if(currentLvl === 4 && currentProj) {
                 const items = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({
@@ -135,9 +173,64 @@
                 })
             }); 
         } catch (e) { console.error("Cloud Save Error:", e); }
-
         isSaving = false;
         if (savePending) { savePending = false; saveToCloud(); }
+    }
+
+    // 新增：带状态和滚动备份的手动保存
+    async function manualSave() {
+        if(!isAdmin || !currentProj) return;
+        const statusText = document.getElementById('save-status-text');
+        const progressBar = document.getElementById('save-progress-bar');
+        const progressInner = document.getElementById('save-progress-inner');
+
+        const updateStatus = (text, percent) => {
+            statusText.innerText = text; statusText.style.display = 'block';
+            progressBar.style.display = 'block'; progressInner.style.width = percent + '%';
+        };
+
+        try {
+            updateStatus("PACKAGING DATA...", 20);
+            await saveToCloud();
+            
+            updateStatus("FETCHING BACKUPS...", 40);
+            const repoUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/backups`;
+            const listRes = await fetch(repoUrl, { headers: {'Authorization': `token ${CONFIG.token}`} });
+            let backups = [];
+            if (listRes.ok) backups = await listRes.json();
+
+            // 唯一前缀：项目名称_
+            const prefix = `${currentProj.title.replace(/\s+/g, '_')}_`;
+            const projectBackups = backups.filter(f => f.name.startsWith(prefix))
+                                          .sort((a, b) => a.name.localeCompare(b.name));
+
+            // 滚动删除：存在5个则删除最早的一个
+            if (projectBackups.length >= 5) {
+                updateStatus("ROLLING DELETE...", 60);
+                const oldest = projectBackups[0];
+                await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/backups/${oldest.name}`, {
+                    method: 'DELETE',
+                    headers: {'Authorization': `token ${CONFIG.token}`},
+                    body: JSON.stringify({ message: "Rolling cleanup", sha: oldest.sha })
+                });
+            }
+
+            updateStatus("UPLOADING BACKUP...", 80);
+            const newBackupName = `backups/${prefix}${Date.now()}.json`;
+            const content = btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2))));
+            await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${newBackupName}`, {
+                method: 'PUT',
+                headers: {'Authorization': `token ${CONFIG.token}`},
+                body: JSON.stringify({ message: `Backup: ${currentProj.title}`, content: content })
+            });
+
+            updateStatus("SAVED SUCCESSFULLY!", 100);
+            setTimeout(() => { statusText.style.display = progressBar.style.display = 'none'; }, 3000);
+
+        } catch (e) {
+            updateStatus("SAVE FAILED!", 0);
+            console.error(e);
+        }
     }
 
     function saveHistory() {
@@ -167,23 +260,6 @@
     });
     function isEditingText() { return document.activeElement && document.activeElement.contentEditable === "true"; }
 
-    const SNAP = 10;
-    function getSnappedPos(target, nx, ny) {
-        let sx = nx, sy = ny;
-        const tw = target.offsetWidth, th = target.offsetHeight;
-        const others = Array.from(vp.children).filter(i => i !== target && i.classList.contains('miro-item'));
-        others.forEach(i => {
-            const ix = parseInt(i.style.left), iy = parseInt(i.style.top), iw = i.offsetWidth, ih = i.offsetHeight;
-            [0, 10].forEach(gap => {
-                if(Math.abs(nx - (ix+iw+gap)) < SNAP) sx = ix+iw+gap;
-                if(Math.abs((nx+tw) - (ix-gap)) < SNAP) sx = ix-tw-gap;
-                if(Math.abs(ny - (iy+ih+gap)) < SNAP) sy = iy+ih+gap;
-                if(Math.abs((ny+th) - (iy-gap)) < SNAP) sy = iy-th-gap;
-            });
-        });
-        return {x: sx, y: sy};
-    }
-
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
@@ -198,55 +274,38 @@
         }
     }
 
+    // 重写 Item 创建逻辑：边缘吸附、双击逻辑、灰底色
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
-        d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
+        const isText = content.includes('text-editor');
+        d.className = `miro-item ${isText && isAdmin ? 'text-item' : ''}`; 
+        d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
         d.innerHTML = `<div class="crop-container">${content}</div><div class="resize-handle"></div>`;
-        
         const edit = d.querySelector('[contenteditable]');
         
         d.onmousedown = (e) => {
-            // 如果正在编辑文本，不触发拖拽逻辑
-            if (e.target.contentEditable === "true") return;
-
-            if(!isAdmin || e.button === 1) return;
-            if(e.button === 0) {
-                e.stopPropagation();
-                document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-                d.classList.add('selected'); vp.appendChild(d);
-                isDragging = true; dragTarget = d;
-                startX = (e.clientX/zoom) - parseInt(d.style.left);
-                startY = (e.clientY/zoom) - parseInt(d.style.top);
-            }
+            if (d.classList.contains('is-editing')) return;
+            if(!isAdmin || e.button !== 0) return;
+            e.stopPropagation();
+            if(!e.shiftKey) document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
+            d.classList.add('selected'); vp.appendChild(d);
+            isDragging = true; dragTarget = d;
+            startX = (e.clientX/zoom) - parseInt(d.style.left);
+            startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
-
         if(edit) { 
-            // 默认禁用编辑，双击时才开启
-            edit.contentEditable = "false";
-
             d.ondblclick = (e) => { 
                 if(!isAdmin) return;
                 e.stopPropagation(); 
-                edit.contentEditable = "true"; // 激活编辑状态
-                edit.focus(); // 强制聚焦
-                
-                // 选中全部文字方便直接修改
+                d.classList.add('is-editing');
+                edit.focus(); 
                 document.execCommand('selectAll', false, null);
-                
                 isDragging = false; 
                 dragTarget = null;
             }; 
-            
-            edit.onblur = () => { 
-                edit.contentEditable = "false";
-                saveHistory(); 
-                saveToCloud(); 
-            }; 
-            
-            // 阻止编辑时的键盘事件干扰全局快捷键
+            edit.onblur = () => { d.classList.remove('is-editing'); saveHistory(); saveToCloud(); }; 
             edit.onkeydown = (e) => { e.stopPropagation(); };
         }
-
         const rh = d.querySelector('.resize-handle');
         rh.onmousedown = (e) => { e.stopPropagation(); e.preventDefault(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
@@ -254,6 +313,19 @@
 
     window.onmousemove = (e) => {
         if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
+        else if(isSelecting) {
+            const curX = (e.clientX - panX) / zoom;
+            const curY = (e.clientY - panY) / zoom;
+            const box = document.getElementById('selection-box');
+            const left = Math.min(curX, selectStartX), top = Math.min(curY, selectStartY);
+            const width = Math.abs(curX - selectStartX), height = Math.abs(curY - selectStartY);
+            box.style.left = left + 'px'; box.style.top = top + 'px';
+            box.style.width = width + 'px'; box.style.height = height + 'px';
+            document.querySelectorAll('.miro-item').forEach(item => {
+                const ix = parseInt(item.style.left), iy = parseInt(item.style.top);
+                if (ix > left && ix < left+width && iy > top && iy < top+height) item.classList.add('selected');
+            });
+        }
         else if(isDragging && dragTarget && !isResizing) {
             let rx = (e.clientX/zoom) - startX, ry = (e.clientY/zoom) - startY;
             const sn = getSnappedPos(dragTarget, rx, ry);
@@ -265,14 +337,36 @@
             dragTarget.style.width = Math.max(50, startW + (e.clientX - startX)/zoom) + "px";
         }
     };
+
     window.onmouseup = () => { 
         if(isDragging || isResizing) { saveHistory(); saveToCloud(); } 
-        isDragging = isResizing = isPanning = false; 
+        isDragging = isResizing = isPanning = isSelecting = false; 
         document.getElementById('guide-x').style.display = 'none';
         document.getElementById('guide-y').style.display = 'none';
+        document.getElementById('selection-box').style.display = 'none';
     };
 
-    bd.onmousedown = (e) => { if(currentLvl === 4 && (e.button === 1 || e.target === bd || e.target === vp)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); } };
+    bd.onmousedown = (e) => { 
+        if(currentLvl !== 4) return;
+        // 双击空白处退出编辑
+        if (e.detail === 2) {
+            document.querySelectorAll('.miro-item.is-editing').forEach(el => el.querySelector('[contenteditable]').blur());
+        }
+        // 中键平移
+        if(e.button === 1 || (e.target === bd || e.target === vp)) { 
+            if(e.button === 0 && e.target === vp) {
+                isSelecting = true;
+                selectStartX = (e.clientX - panX) / zoom;
+                selectStartY = (e.clientY - panY) / zoom;
+                const box = document.getElementById('selection-box');
+                box.style.display = 'block'; box.style.width = box.style.height = '0px';
+            } else {
+                isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY;
+            }
+            e.preventDefault(); 
+        } 
+    };
+
     bd.addEventListener('wheel', e => {
         if(currentLvl === 4) {
             e.preventDefault();
@@ -328,25 +422,22 @@
         });
     }
 
-    async function handleUpload(e) {
+    async function handleUpload(event) {
         if(!isAdmin || !currentProj) return;
-        const fs = Array.from(e.target.files);
+        const fs = Array.from(event.target.files);
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         fs.forEach(async (file, idx) => {
             const taskId = "task_" + Date.now() + "_" + idx;
             uploadQueue.tasks[taskId] = { fileName: file.name, progress: 10, status: 'compressing', statusText: '智能处理中...' };
             uploadQueue.updateUI();
-            
             const rx = (dx+(idx*30))+'px', ry = (dy+(idx*30))+'px', isImg = file.type.includes('image');
             const r = new FileReader();
             r.onload = async (re) => {
                 const item = createMiroItem(isImg ? `<img src="${re.target.result}">` : `<video src="${re.target.result}" autoplay loop muted></video>`, rx, ry);
                 let b64 = isImg ? await compress(file) : await toBase64(file);
-                
                 uploadQueue.tasks[taskId].status = 'uploading';
-                uploadQueue.tasks[taskId].statusText = isImg ? `高清压缩完成 (${Math.round(atob(b64).length/1024)}KB)` : '同步云端中...';
+                uploadQueue.tasks[taskId].statusText = '同步云端中...';
                 uploadQueue.updateUI();
-
                 const xhr = new XMLHttpRequest();
                 xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
                 xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
@@ -458,7 +549,13 @@
 
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
     function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
-    function addText() { createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300;">New Text</div>`,'500px','500px','250px'); saveHistory(); }
+    
+    function addText() { 
+        const textHtml = `<div class="text-editor" contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:100px; min-height:50px; cursor:text;">New Text</div>`;
+        createMiroItem(textHtml,'500px','500px','250px'); 
+        saveHistory(); 
+    }
+
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
     function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
