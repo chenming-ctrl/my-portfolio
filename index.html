@@ -53,7 +53,7 @@
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
         .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; padding: 10px; }
-        #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 220px; z-index: 9999; pointer-events: none; }
+        #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 240px; z-index: 9999; pointer-events: none; }
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
     </style>
@@ -105,9 +105,41 @@
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
     let dragTarget = null, startX, startY, startW;
     let historyStack = [];
+    let isSaving = false, savePending = false; // 并发控制锁
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
 
-    // --- 核心逻辑 ---
+    async function saveToCloud() { 
+        if(!isAdmin) return; 
+        if (isSaving) { savePending = true; return; }
+        isSaving = true;
+
+        try {
+            if(currentLvl === 4 && currentProj) {
+                const items = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({
+                    html: el.querySelector('.crop-container').innerHTML, 
+                    x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height
+                })); 
+                portfolio_data[currentProj.id].layout = items; 
+                portfolio_data[currentProj.id].title = document.getElementById('lvl4Title').innerText; 
+                portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
+            }
+            const url = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`; 
+            const getSha = await fetch(url + "?t=" + Date.now(), { headers: {'Authorization': `token ${CONFIG.token}`} }); 
+            const sha = (await getSha.json()).sha; 
+            await fetch(url, {
+                method: 'PUT', headers: {'Authorization': `token ${CONFIG.token}`}, 
+                body: JSON.stringify({
+                    message: "Sync Portfolio", 
+                    content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2)))), 
+                    sha
+                })
+            }); 
+        } catch (e) { console.error("Cloud Save Error:", e); }
+
+        isSaving = false;
+        if (savePending) { savePending = false; saveToCloud(); }
+    }
+
     function saveHistory() {
         const state = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({
             html: el.querySelector('.crop-container').innerHTML,
@@ -170,13 +202,14 @@
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
         d.innerHTML = `<div class="crop-container">${content}</div><div class="resize-handle"></div>`;
+        
         const edit = d.querySelector('[contenteditable]');
         
         d.onmousedown = (e) => {
-            if(!isAdmin || e.button === 1) return;
-            // 锁定逻辑：如果正在编辑文字，禁止拖拽
-            if (e.target.contentEditable === "true" || (edit && document.activeElement === edit)) return;
+            // 如果正在编辑文本，不触发拖拽逻辑
+            if (e.target.contentEditable === "true") return;
 
+            if(!isAdmin || e.button === 1) return;
             if(e.button === 0) {
                 e.stopPropagation();
                 document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
@@ -186,10 +219,34 @@
                 startY = (e.clientY/zoom) - parseInt(d.style.top);
             }
         };
+
         if(edit) { 
-            d.ondblclick = (e) => { e.stopPropagation(); edit.focus(); isDragging = false; }; 
-            edit.onblur = () => { saveHistory(); saveToCloud(); }; 
+            // 默认禁用编辑，双击时才开启
+            edit.contentEditable = "false";
+
+            d.ondblclick = (e) => { 
+                if(!isAdmin) return;
+                e.stopPropagation(); 
+                edit.contentEditable = "true"; // 激活编辑状态
+                edit.focus(); // 强制聚焦
+                
+                // 选中全部文字方便直接修改
+                document.execCommand('selectAll', false, null);
+                
+                isDragging = false; 
+                dragTarget = null;
+            }; 
+            
+            edit.onblur = () => { 
+                edit.contentEditable = "false";
+                saveHistory(); 
+                saveToCloud(); 
+            }; 
+            
+            // 阻止编辑时的键盘事件干扰全局快捷键
+            edit.onkeydown = (e) => { e.stopPropagation(); };
         }
+
         const rh = d.querySelector('.resize-handle');
         rh.onmousedown = (e) => { e.stopPropagation(); e.preventDefault(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
@@ -216,7 +273,6 @@
     };
 
     bd.onmousedown = (e) => { if(currentLvl === 4 && (e.button === 1 || e.target === bd || e.target === vp)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); } };
-
     bd.addEventListener('wheel', e => {
         if(currentLvl === 4) {
             e.preventDefault();
@@ -230,49 +286,87 @@
 
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
 
-    // --- 增强版上传逻辑 ---
+    const uploadQueue = { 
+        tasks: {}, 
+        updateUI() { 
+            const list = document.getElementById('global-upload-list'); 
+            list.innerHTML = Object.values(this.tasks).map(t => `
+                <div style="background:rgba(255,255,255,0.9); padding:12px; border-radius:10px; margin-bottom:10px; box-shadow:0 8px 20px rgba(0,0,0,0.1); border-left:4px solid ${t.status==='done'?'#34A853':'#4285F4'}; backdrop-filter:blur(5px);">
+                    <div style="font-size:10px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.fileName}</div>
+                    <div style="font-size:9px; color:#888; margin:4px 0;">${t.statusText}</div>
+                    <div style="height:3px; background:#eee; width:100%; border-radius:2px; overflow:hidden;">
+                        <div style="width:${t.progress}%; height:100%; background:${t.status==='compressing'?'#FBBC05':'#4285F4'}; transition:0.3s;"></div>
+                    </div>
+                </div>`).join(''); 
+        } 
+    };
+
+    async function compress(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let { width: w, height: h } = img;
+                    const maxDimension = 2500;
+                    if (w > maxDimension || h > maxDimension) {
+                        if (w > h) { h = (maxDimension / w) * h; w = maxDimension; } else { w = (maxDimension / h) * w; h = maxDimension; }
+                    }
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+                    const fileSizeMB = file.size / (1024 * 1024);
+                    let quality = fileSizeMB < 0.6 ? 0.98 : (fileSizeMB > 2 ? 0.85 : 0.92);
+                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    const resultSizeKB = (atob(dataUrl.split(',')[1]).length) / 1024;
+                    if (resultSizeKB < 400 && fileSizeMB > 0.5) dataUrl = canvas.toDataURL('image/jpeg', 0.98);
+                    resolve(dataUrl.split(',')[1]);
+                };
+            };
+        });
+    }
+
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
         const fs = Array.from(e.target.files);
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
-        
         fs.forEach(async (file, idx) => {
-            const taskId = "task_"+Date.now()+"_"+idx;
-            const originalSizeKB = (file.size / 1024).toFixed(1);
-            uploadQueue.tasks[taskId] = {fileName:file.name, progress:0, info: 'Compressing...'}; uploadQueue.updateUI();
+            const taskId = "task_" + Date.now() + "_" + idx;
+            uploadQueue.tasks[taskId] = { fileName: file.name, progress: 10, status: 'compressing', statusText: '智能处理中...' };
+            uploadQueue.updateUI();
             
-            const rx = (dx+(idx*30))+'px', ry = (dy+(idx*30))+'px';
-            const isImg = file.type.includes('image');
-            
+            const rx = (dx+(idx*30))+'px', ry = (dy+(idx*30))+'px', isImg = file.type.includes('image');
             const r = new FileReader();
             r.onload = async (re) => {
-                // 即时预览：使用 FileReader 读取的 Base64 立即显示，解决上传时的“消失感”
-                const localBase64 = re.target.result;
-                const preHtml = isImg ? `<img src="${localBase64}">` : `<video src="${localBase64}" autoplay loop muted playsinline></video>`;
-                const item = createMiroItem(preHtml, rx, ry, "300px");
+                const item = createMiroItem(isImg ? `<img src="${re.target.result}">` : `<video src="${re.target.result}" autoplay loop muted></video>`, rx, ry);
+                let b64 = isImg ? await compress(file) : await toBase64(file);
                 
-                // 执行压缩
-                const b64 = isImg ? await compress(file) : await toBase64(file);
-                const compressedSizeKB = (atob(b64).length / 1024).toFixed(1);
-                const ratio = Math.round((1 - compressedSizeKB / originalSizeKB) * 100);
-                uploadQueue.tasks[taskId].info = isImg ? `${originalSizeKB}KB ➔ ${compressedSizeKB}KB (-${ratio}%)` : `${originalSizeKB}KB`;
+                uploadQueue.tasks[taskId].status = 'uploading';
+                uploadQueue.tasks[taskId].statusText = isImg ? `高清压缩完成 (${Math.round(atob(b64).length/1024)}KB)` : '同步云端中...';
                 uploadQueue.updateUI();
 
                 const xhr = new XMLHttpRequest();
-                xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${taskId}_${file.name}`);
+                xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
                 xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-                xhr.upload.onprogress = (ev) => { uploadQueue.tasks[taskId].progress = Math.round((ev.loaded/ev.total)*100); uploadQueue.updateUI(); };
+                xhr.upload.onprogress = (ev) => {
+                    uploadQueue.tasks[taskId].progress = 30 + Math.round((ev.loaded/ev.total)*65);
+                    uploadQueue.updateUI();
+                };
                 xhr.onload = async () => {
                     if(xhr.status === 201 || xhr.status === 200){
                         const remoteUrl = JSON.parse(xhr.responseText).content.download_url;
-                        // 静默替换：将本地预览图替换为远程链接，用户无感知
-                        const mediaEl = item.querySelector('img, video');
-                        if(mediaEl) mediaEl.src = remoteUrl;
-                        saveHistory(); saveToCloud();
+                        item.querySelector('img, video').src = remoteUrl;
+                        uploadQueue.tasks[taskId].status = 'done';
+                        uploadQueue.tasks[taskId].statusText = '已就绪';
+                        uploadQueue.tasks[taskId].progress = 100;
+                        uploadQueue.updateUI();
+                        saveToCloud();
+                        setTimeout(() => { delete uploadQueue.tasks[taskId]; uploadQueue.updateUI(); }, 2000);
                     }
-                    delete uploadQueue.tasks[taskId]; uploadQueue.updateUI();
                 };
-                xhr.send(JSON.stringify({message:"Up", content:b64}));
+                xhr.send(JSON.stringify({message: "Media Upload", content: b64}));
             };
             r.readAsDataURL(file);
         });
@@ -288,41 +382,8 @@
         if(currentLvl === 2) renderCatGrid();
     }
 
-    const uploadQueue = { 
-        tasks: {}, 
-        updateUI() { 
-            const list = document.getElementById('global-upload-list'); 
-            list.innerHTML = Object.values(this.tasks).map(t => `
-                <div style="background:white; padding:10px; border-radius:8px; margin-bottom:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); border-left:4px solid #34A853;">
-                    <div style="font-size:10px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.fileName}</div>
-                    <div style="font-size:9px; color:#888; margin:4px 0;">${t.info || ''}</div>
-                    <div style="height:3px; background:#eee; width:100%;"><div style="width:${t.progress}%; height:100%; background:#34A853; transition:0.3s;"></div></div>
-                </div>`).join(''); 
-        } 
-    };
-
-    async function compress(file) { return new Promise(res => { const r=new FileReader(); r.readAsDataURL(file); r.onload=(e)=>{const img=new Image(); img.src=e.target.result; img.onload=()=>{const canvas=document.createElement('canvas'); let w=img.width, h=img.height; if(w>1500){h=(1500/w)*h; w=1500;} canvas.width=w; canvas.height=h; canvas.getContext('2d').drawImage(img,0,0,w,h); res(canvas.toDataURL('image/jpeg',0.8).split(',')[1]);}}}); }
     function toBase64(file) { return new Promise(res=>{const fr=new FileReader(); fr.onload=()=>res(fr.result.split(',')[1]); fr.readAsDataURL(file);}); }
     
-    async function saveToCloud() { 
-        if(!isAdmin) return; 
-        if(currentLvl === 4 && currentProj) {
-            const items=Array.from(vp.children).filter(el=>el.classList.contains('miro-item')).map(el=>({html:el.querySelector('.crop-container').innerHTML, x:el.style.left, y:el.style.top, w:el.style.width, h:el.style.height})); 
-            portfolio_data[currentProj.id].layout=items; 
-            portfolio_data[currentProj.id].title=document.getElementById('lvl4Title').innerText; 
-            portfolio_data[currentProj.id].thumbs=items.filter(it=>it.html.includes('<img')).slice(0,3).map(it=>it.html.match(/src="([^"]+)"/)?.[1]);
-        }
-        const url=`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`; 
-        const getSha=await fetch(url, {headers:{'Authorization':`token ${CONFIG.token}`}}); 
-        const sha=(await getSha.json()).sha; 
-        await fetch(url, {method:'PUT', headers:{'Authorization':`token ${CONFIG.token}`}, body:JSON.stringify({message:"Update", content:btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2)))), sha})}); 
-    }
-
-    async function deleteProject(id, title) {
-        const confirmName = prompt(`⚠️ 确定删除项目 [ ${title} ] 吗？\n输入项目全名确认：`);
-        if (confirmName === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); }
-    }
-
     function addLink() {
         const url = prompt("Link (YouTube, Bilibili):");
         if (!url) return;
@@ -334,8 +395,7 @@
             const yid = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/)?.[1];
             if (yid) embedUrl = `https://www.youtube.com/embed/${yid}`;
         }
-        const html = `<iframe src="${embedUrl}" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true" style="width:100%; height:100%; pointer-events:auto;"></iframe>`;
-        createMiroItem(html, '400px', '400px', '480px', '270px');
+        createMiroItem(`<iframe src="${embedUrl}" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px');
         saveHistory(); saveToCloud();
     }
 
@@ -375,6 +435,7 @@
             }, 50);
             document.getElementById('lvl4Title').innerText=portfolio_data[currentProj.id].title;
             document.getElementById('lvl4CatTag').innerText=currentCat;
+            document.getElementById('adminControls').style.display = isAdmin ? 'flex' : 'none';
         }
         document.getElementById('lvl'+lvl).classList.add('active'); 
         document.documentElement.style.setProperty('--bg-blur', [0,15,30,0][lvl-1]+'px'); 
@@ -391,10 +452,14 @@
         saveToCloud().then(() => renderProjGrid());
     }
 
+    async function deleteProject(id, title) {
+        if (prompt(`确定删除 [ ${title} ]？输入全名确认：`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); }
+    }
+
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
     function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
     function addText() { createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300;">New Text</div>`,'500px','500px','250px'); saveHistory(); }
-    function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminControls').style.display='flex'; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
+    function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
     function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
     window.onload = () => { initParticles(); animate(); initSystem(); };
