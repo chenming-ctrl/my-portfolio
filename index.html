@@ -42,7 +42,6 @@
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
-        /* 辅助线与任务列表样式 */
         .guide-line { position: fixed; background: #4285F4; pointer-events: none; z-index: 10000; display: none; opacity: 0.6; }
         #guide-x { width: 1px; height: 100vh; top: 0; }
         #guide-y { height: 1px; width: 100vw; left: 0; }
@@ -163,6 +162,45 @@
         if (savePending) { savePending = false; saveToCloud(); }
     }
 
+    async function smartCompress(file) {
+        const MAX_SIZE = 2 * 1024 * 1024;
+        if (!file.type.includes('image') || file.size <= MAX_SIZE) {
+            return new Promise(resolve => {
+                const r = new FileReader();
+                r.onload = e => resolve({ content: e.target.result.split(',')[1], isCompressed: false });
+                r.readAsDataURL(file);
+            });
+        }
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width, height = img.height;
+                    const maxDim = 2560;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) { height *= maxDim / width; width = maxDim; }
+                        else { width *= maxDim / height; height = maxDim; }
+                    }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    let quality = 0.92, base64 = "";
+                    const attempt = () => {
+                        base64 = canvas.toDataURL('image/jpeg', quality);
+                        const size = Math.round((base64.length - 81) * 0.75);
+                        if (size > MAX_SIZE && quality > 0.1) { quality -= 0.15; attempt(); }
+                        else { resolve({ content: base64.split(',')[1], isCompressed: true }); }
+                    };
+                    attempt();
+                };
+            };
+        });
+    }
+
     async function runAutoBackup(reason = "Auto") {
         if (!isAdmin || !CONFIG.token || !currentProj) return;
         const container = document.getElementById('global-upload-list');
@@ -223,28 +261,27 @@
         const fs = Array.from(e.target.files), container = document.getElementById('global-upload-list');
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
 
-        fs.forEach((file, idx) => {
+        fs.forEach(async (file, idx) => {
             const taskId = "t_" + Date.now() + "_" + idx;
             container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>${file.name.substring(0, 12)}...</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status" style="display:none;"></div></div>`);
             const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent');
 
-            const r = new FileReader();
-            r.onload = (re) => {
-                const item = createMiroItem(file.type.includes('image') ? `<img src="${re.target.result}" style="opacity:0.5">` : `<video src="${re.target.result}" muted style="opacity:0.5"></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
-                const xhr = new XMLHttpRequest();
-                xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
-                xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-                xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) { const p = Math.round((ev.loaded/ev.total)*100); fill.style.width = p+'%'; pText.innerText = p+'%'; } };
-                xhr.onload = () => {
-                    if (xhr.status < 300) {
-                        const mEl = item.querySelector('img, video'); mEl.src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); mEl.style.opacity = "1";
-                        taskEl.querySelector('.task-status').innerText = "SUCCESS"; taskEl.querySelector('.task-status').className = "task-status success"; taskEl.querySelector('.task-status').style.display = "block";
-                        saveToCloud(); setTimeout(() => taskEl.remove(), 3000);
-                    } else { taskEl.querySelector('.task-status').innerText = "FAILED"; taskEl.querySelector('.task-status').className = "task-status error"; taskEl.querySelector('.task-status').style.display = "block"; }
-                };
-                xhr.send(JSON.stringify({message: "Upload", content: re.target.result.split(',')[1]}));
+            const { content, isCompressed } = await smartCompress(file);
+            const previewSrc = isCompressed ? `data:image/jpeg;base64,${content}` : URL.createObjectURL(file);
+            const item = createMiroItem(file.type.includes('image') ? `<img src="${previewSrc}" style="opacity:0.5">` : `<video src="${previewSrc}" muted style="opacity:0.5"></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
+            xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
+            xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) { const p = Math.round((ev.loaded/ev.total)*100); fill.style.width = p+'%'; pText.innerText = p+'%'; } };
+            xhr.onload = () => {
+                if (xhr.status < 300) {
+                    const mEl = item.querySelector('img, video'); mEl.src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); mEl.style.opacity = "1";
+                    taskEl.querySelector('.task-status').innerText = "SUCCESS" + (isCompressed ? " (COMPRESSED)" : ""); taskEl.querySelector('.task-status').className = "task-status success"; taskEl.querySelector('.task-status').style.display = "block";
+                    saveToCloud(); setTimeout(() => taskEl.remove(), 3000);
+                } else { taskEl.querySelector('.task-status').innerText = "FAILED"; taskEl.querySelector('.task-status').className = "task-status error"; taskEl.querySelector('.task-status').style.display = "block"; }
             };
-            r.readAsDataURL(file);
+            xhr.send(JSON.stringify({message: `Upload ${isCompressed?'Compressed ':''}media`, content: content}));
         });
     }
 
