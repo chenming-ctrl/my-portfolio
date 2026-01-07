@@ -36,27 +36,22 @@
         #lvl4 { background: #fbfbfb; z-index: 6000; display: none; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
         .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
-        
-        /* 交互增强样式 */
-        .miro-item.selected { outline: 2px solid #4285F4 !important; z-index: 1000 !important; }
-        .miro-item.editing { z-index: 10000 !important; background: #fff; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
-        .selection-box { position: fixed; border: 1px solid #4285F4; background: rgba(66, 133, 244, 0.1); z-index: 10000; pointer-events: none; }
-        
+        .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
-        .guide-line { position: absolute; background: rgba(66, 133, 244, 0.4); pointer-events: none; z-index: 5000; display: none; }
-        #guide-x { width: 1px; height: 20000px; top: -10000px; border-left: 1px dashed #4285F4; }
-        #guide-y { height: 1px; width: 20000px; left: -10000px; border-top: 1px dashed #4285F4; }
         
-        /* 文字卡片工具栏 */
-        .text-toolbar { position: absolute; top: -50px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: white; padding: 6px 12px; border-radius: 8px; display: none; gap: 10px; align-items: center; }
+        /* 文字卡片专用样式 */
+        .miro-item.editing { z-index: 10000 !important; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: white; padding: 6px 12px; border-radius: 8px; display: none; gap: 10px; align-items: center; z-index: 10001; }
         .miro-item.editing .text-toolbar { display: flex; }
         .text-toolbar button, .text-toolbar select { background: transparent; border: none; color: white; cursor: pointer; font-size: 12px; outline: none; }
         .text-toolbar select option { background: #1a1a1a; }
-        .editable-content { outline: none; }
 
+        .guide-line { position: absolute; background: rgba(66, 133, 244, 0.4); pointer-events: none; z-index: 5000; display: none; }
+        #guide-x { width: 1px; height: 20000px; top: -10000px; border-left: 1px dashed #4285F4; }
+        #guide-y { height: 1px; width: 20000px; left: -10000px; border-top: 1px dashed #4285F4; }
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
@@ -116,8 +111,7 @@
         get token() { return (localStorage.getItem('gh_token') || '').trim(); }
     };
 
-    const ARCHI_FONTS = ["'Helvetica Neue'", "'Arial'", "'Georgia'", "'Courier New'", "'Times New Roman'"];
-    const SNAP_THRESHOLD = 8;
+    const ARCHI_FONTS = ["'Helvetica Neue'", "'Arial'", "'Georgia'", "'Courier New'"];
 
     function getAssetUrl(rawUrl) {
         if (!rawUrl || !rawUrl.includes('github.com')) return rawUrl;
@@ -129,9 +123,7 @@
     let dragTarget = null, startX, startY, startW;
     let historyStack = [];
     let isSaving = false, savePending = false; 
-    let selectedItems = new Set(), isSelecting = false, selectionBox = null, startSelectX, startSelectY;
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
-    const gX = document.getElementById('guide-x'), gY = document.getElementById('guide-y');
 
     async function saveToCloud() { 
         if(!isAdmin) return; 
@@ -171,10 +163,12 @@
                 const files = await res.json();
                 backups = files.filter(f => f.name.startsWith(projectID)).sort((a, b) => a.name.localeCompare(b.name));
             }
-            const fileName = `${projectID}_${dateStr}_${(backups.length + 1).toString().padStart(2, '0')}.json`;
+            const lastFile = backups[backups.length - 1];
+            let nextNum = lastFile ? (parseInt(lastFile.name.split('_').pop()) + 1) : 1;
+            const fileName = `${projectID}_${dateStr}_${nextNum.toString().padStart(2, '0')}.json`;
             await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}/${fileName}`, {
                 method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` },
-                body: JSON.stringify({ message: `Backup: ${currentProj.title}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) })
+                body: JSON.stringify({ message: `Backup [${reason}]: ${currentProj.title}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) })
             });
         } catch (e) { console.error("Backup Failed:", e); }
     }
@@ -186,17 +180,18 @@
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
             const files = await res.json();
             const pbs = files.filter(f => f.name.startsWith(currentProj.id)).sort((a, b) => b.name.localeCompare(a.name));
-            if (pbs.length === 0) return alert("暂无备份");
-            const choice = prompt(`选择恢复版本：\n` + pbs.map((f, i) => `${i+1}. ${f.name}`).join('\n'));
+            if (pbs.length === 0) { alert("暂无备份。"); return; }
+            const choice = prompt(`输入编号恢复 (1-${pbs.length})：\n` + pbs.map((f, i) => `${i+1}. ${f.name}`).join('\n'));
             if (choice && pbs[choice-1]) {
                 const r = await fetch(pbs[choice-1].download_url);
-                portfolio_data[currentProj.id] = await r.json();
-                showLevel(4); await saveToCloud();
+                const data = await r.json();
+                portfolio_data[currentProj.id] = data; currentProj = {id: currentProj.id, ...data};
+                showLevel(4); await saveToCloud(); alert("已恢复！");
             }
-        } catch (e) { alert("恢复失败"); }
+        } catch (e) { alert("获取备份失败"); }
     }
 
-    // 三级页面强化版恢复功能
+    // 三级页面强化版 Restore：支持序号/文件名分类检索
     async function showGlobalRestoreList() {
         if (!isAdmin) return;
         const btn = document.getElementById('restoreProjBtn');
@@ -206,22 +201,37 @@
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
             if (!res.ok) throw new Error("无法读取备份目录");
+            
             const files = await res.json();
             const prefix = currentCat[0].toLowerCase();
-            const allBackups = files.filter(f => f.name.startsWith(prefix)).sort((a, b) => b.name.localeCompare(a.name)).slice(0, 30);
-            if (allBackups.length === 0) { alert("当前分类暂无项目备份。"); btn.innerText = originalText; return; }
-            const choice = prompt("请选择要找回的项目版本：\n" + allBackups.map((f, i) => `${i + 1}. ${f.name}`).join('\n'));
-            if (choice && allBackups[choice - 1]) {
-                const target = allBackups[choice - 1];
+            const backups = files.filter(f => f.name.startsWith(prefix)).sort((a, b) => b.name.localeCompare(a.name));
+
+            if (backups.length === 0) { alert("当前分类暂无项目备份。"); btn.innerText = originalText; return; }
+
+            let msg = `当前分类 [${currentCat}] 的可用备份：\n`;
+            msg += backups.slice(0, 20).map((f, i) => `${i + 1}. ${f.name}`).join('\n');
+            msg += "\n\n请输入 序号 或 完整文件名：";
+            
+            const input = prompt(msg);
+            if (!input) { btn.innerText = originalText; return; }
+
+            let target;
+            if (!isNaN(input) && backups[parseInt(input)-1]) { target = backups[parseInt(input)-1]; }
+            else { target = backups.find(f => f.name === input.trim()); }
+
+            if (target) {
                 btn.innerText = "⏳ RESTORING...";
                 const fileRes = await fetch(target.download_url);
                 const backupData = await fileRes.json();
-                if (!backupData.title || !Array.isArray(backupData.layout)) throw new Error("备份文件损坏");
+                if (!backupData.title || !Array.isArray(backupData.layout)) throw new Error("文件损坏");
+                
                 const rid = target.name.split('_')[0];
                 portfolio_data[rid] = backupData;
                 btn.innerText = "⏳ SYNCING...";
-                await saveToCloud(); renderProjGrid(); alert("项目已找回！");
-            }
+                await saveToCloud();
+                renderProjGrid();
+                alert("✅ 成功恢复并找回项目！");
+            } else { alert("❌ 未找到指定的备份。"); }
         } catch (e) { alert("找回失败: " + e.message); } finally { btn.innerText = originalText; }
     }
 
@@ -234,12 +244,8 @@
     async function initSystem() {
         const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
         try {
-            const headers = CONFIG.token ? {'Authorization': `token ${CONFIG.token}`} : {};
-            const res = await fetch(`${apiUrl}?t=${Date.now()}`, { headers });
-            if (res.ok) {
-                const json = await res.json();
-                portfolio_data = JSON.parse(decodeURIComponent(escape(atob(json.content))));
-            }
+            const res = await fetch(`${apiUrl}?t=${Date.now()}`, { headers: {'Authorization': `token ${CONFIG.token}`} });
+            if (res.ok) { portfolio_data = JSON.parse(decodeURIComponent(escape(atob((await res.json()).content)))); }
         } catch(e) {}
         document.getElementById('loading-bar').style.width = "100%";
         setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; if(currentLvl === 2) renderCatGrid(); }, 500);
@@ -263,100 +269,44 @@
         }).join(''); 
     }
 
-    // 四级页面交互重构
+    // 重构版文字卡片绑定逻辑
+    function bindTextEvents(item) {
+        const editArea = item.querySelector('.editable-content');
+        if (!editArea) return;
+        item.ondblclick = (e) => {
+            if (!isAdmin) return; e.stopPropagation();
+            item.classList.add('editing'); editArea.contentEditable = "true";
+            editArea.focus(); isDragging = false; dragTarget = null;
+        };
+        editArea.onblur = () => { item.classList.remove('editing'); editArea.contentEditable = "false"; saveToCloud(); };
+        editArea.onmousedown = (e) => { if (item.classList.contains('editing')) e.stopPropagation(); };
+    }
+
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
         const speedContent = content.replace(/src="([^"]+)"/g, (match, p1) => `src="${getAssetUrl(p1)}"`);
         d.innerHTML = `<div class="crop-container">${speedContent}</div><div class="resize-handle"></div>`;
         
-        const editArea = d.querySelector('.editable-content');
         d.onmousedown = (e) => {
             if (d.classList.contains('editing') || !isAdmin || e.button !== 0) return;
-            e.stopPropagation();
-            if(!e.shiftKey && !selectedItems.has(d)) {
-                document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-                selectedItems.clear();
-            }
-            d.classList.add('selected'); selectedItems.add(d); vp.appendChild(d);
-            isDragging = true; dragTarget = d;
+            e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
+            d.classList.add('selected'); vp.appendChild(d); isDragging = true; dragTarget = d;
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
 
-        if(editArea) {
-            d.ondblclick = (e) => { if (!isAdmin) return; e.stopPropagation(); d.classList.add('editing'); d.classList.remove('selected'); editArea.contentEditable = "true"; editArea.focus(); isDragging = false; };
-            editArea.onblur = () => { d.classList.remove('editing'); editArea.contentEditable = "false"; saveHistory(); saveToCloud(); };
-        }
+        if(content.includes('editable-content')) bindTextEvents(d);
 
         const rh = d.querySelector('.resize-handle');
         rh.onmousedown = (e) => { e.stopPropagation(); e.preventDefault(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
     }
 
-    // 框选与多选移动
-    bd.onmousedown = (e) => {
-        if (currentLvl === 4 && e.button === 0 && (e.target === bd || e.target === vp)) {
-            isSelecting = true; startSelectX = e.clientX; startSelectY = e.clientY;
-            selectionBox = document.createElement('div'); selectionBox.className = 'selection-box';
-            document.body.appendChild(selectionBox);
-            if(!e.shiftKey) { document.querySelectorAll('.miro-item.selected').forEach(i => i.classList.remove('selected')); selectedItems.clear(); }
-        } else if(currentLvl === 4 && e.button === 1) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); }
-    };
-
-    function getSnapped(val) {
-        const steps = [10, 20, 50, 100];
-        for(let s of steps) { if(Math.abs(val % s) < SNAP_THRESHOLD) return Math.round(val / s) * s; }
-        if(Math.abs(val) < SNAP_THRESHOLD) return 0;
-        return val;
-    }
-
-    window.onmousemove = (e) => {
-        if(isSelecting) {
-            const x = Math.min(e.clientX, startSelectX), y = Math.min(e.clientY, startSelectY);
-            const w = Math.abs(e.clientX - startSelectX), h = Math.abs(e.clientY - startSelectY);
-            selectionBox.style.left = x + 'px'; selectionBox.style.top = y + 'px'; selectionBox.style.width = w + 'px'; selectionBox.style.height = h + 'px';
-            document.querySelectorAll('.miro-item').forEach(item => {
-                const r = item.getBoundingClientRect();
-                if(r.left > x && r.right < x + w && r.top > y && r.bottom < y + h) { item.classList.add('selected'); selectedItems.add(item); }
-            });
-        } else if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
-        else if(isDragging && dragTarget && !isResizing) {
-            let nx = getSnapped((e.clientX/zoom) - startX), ny = getSnapped((e.clientY/zoom) - startY);
-            let dx = nx - parseInt(dragTarget.style.left), dy = ny - parseInt(dragTarget.style.top);
-            selectedItems.forEach(i => { i.style.left = (parseInt(i.style.left) + dx) + "px"; i.style.top = (parseInt(i.style.top) + dy) + "px"; });
-            gX.style.display = (nx % 10 === 0) ? 'block' : 'none'; gX.style.left = nx + 'px';
-            gY.style.display = (ny % 10 === 0) ? 'block' : 'none'; gY.style.top = ny + 'px';
-        } else if(isResizing && dragTarget) {
-            let nw = getSnapped(Math.max(50, startW + (e.clientX - startX)/zoom));
-            dragTarget.style.width = nw + "px"; if(dragTarget.querySelector('img, video')) dragTarget.style.height = "auto";
-        }
-    };
-
-    window.onmouseup = () => {
-        if(isSelecting) { isSelecting = false; selectionBox?.remove(); }
-        if(isDragging || isResizing) { saveHistory(); saveToCloud(); } 
-        isDragging = isResizing = isPanning = false; gX.style.display = gY.style.display = 'none';
-    };
-
-    // 快捷键与粘贴
-    window.onkeydown = (e) => {
-        if(currentLvl !== 4 || document.activeElement.contentEditable === "true") return;
-        if(e.key === "Delete" || e.key === "Backspace") { selectedItems.forEach(i => i.remove()); selectedItems.clear(); saveToCloud(); }
-        if(e.ctrlKey && e.key === "z") { e.preventDefault(); undo(); }
-    };
-    window.addEventListener('paste', e => {
-        if(currentLvl !== 4 || !isAdmin) return;
-        const items = e.clipboardData.items;
-        for(let i of items) { if(i.type.indexOf("image") !== -1) {
-            const r = new FileReader(); r.onload = (ev) => createMiroItem(`<img src="${ev.target.result}">`, ((window.innerWidth/2-panX)/zoom)+'px', ((window.innerHeight/2-panY)/zoom)+'px');
-            r.readAsDataURL(i.getAsFile());
-        }}
-    });
-
     function addText() {
         const fontOpts = ARCHI_FONTS.map(f => `<option value="${f}">${f.replace(/'/g,'')}</option>`).join('');
-        const html = `<div class="text-toolbar"><select onchange="document.execCommand('fontName',false,this.value)">${fontOpts}</select><button onclick="document.execCommand('bold')"><b>B</b></button><button onclick="document.execCommand('justifyLeft')">L</button><button onclick="document.execCommand('justifyCenter')">C</button></div><div class="editable-content" style="padding:25px; font-family:'Helvetica Neue'; font-weight:300; line-height:1.6; font-size:16px;">New Concept...</div>`;
-        createMiroItem(html, '500px', '500px', '400px', 'auto'); saveHistory();
+        const html = `<div class="text-toolbar"><select onchange="document.execCommand('fontName',false,this.value)">${fontOpts}</select><button onclick="document.execCommand('bold')">B</button><button onclick="document.execCommand('fontSize', false, '5')">H</button><button onclick="document.execCommand('justifyLeft')">L</button></div><div class="editable-content" style="padding:25px; min-width:150px; cursor:text; font-family:'Helvetica Neue'; font-weight:300; font-size:16px;">New Concept...</div>`;
+        const item = createMiroItem(html, '500px', '500px', '400px', 'auto');
+        saveHistory();
     }
 
     function saveHistory() {
@@ -385,23 +335,56 @@
         }
     }
 
+    window.onmousemove = (e) => {
+        if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
+        else if(isDragging && dragTarget && !isResizing) {
+            dragTarget.style.left = ((e.clientX/zoom) - startX) + "px"; dragTarget.style.top = ((e.clientY/zoom) - startY) + "px";
+        } else if(isResizing && dragTarget) { dragTarget.style.width = Math.max(50, startW + (e.clientX - startX)/zoom) + "px"; }
+    };
+    window.onmouseup = () => { if(isDragging || isResizing) { saveHistory(); saveToCloud(); } isDragging = isResizing = isPanning = false; };
+    bd.onmousedown = (e) => { if(currentLvl === 4 && (e.button === 1 || e.target === bd || e.target === vp)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); } };
     bd.addEventListener('wheel', e => { if(currentLvl === 4) { e.preventDefault(); const f = Math.pow(1.1, -e.deltaY/120); const nz = Math.min(Math.max(zoom * f, 0.05), 5); panX = e.clientX - (e.clientX - panX) * (nz/zoom); panY = e.clientY - (e.clientY - panY) * (nz/zoom); zoom = nz; updateViewport(); } }, {passive:false});
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
 
-    const uploadQueue = { tasks: {}, updateUI() { const list = document.getElementById('global-upload-list'); list.innerHTML = Object.values(this.tasks).map(t => `<div style="background:rgba(255,255,255,0.9); padding:12px; border-radius:10px; margin-bottom:10px; box-shadow:0 8px 20px rgba(0,0,0,0.1); border-left:4px solid ${t.status==='done'?'#34A853':'#4285F4'}; backdrop-filter:blur(5px);"><div style="font-size:10px; font-weight:700;">${t.fileName}</div><div style="height:3px; background:#eee; width:100%;"><div style="width:${t.progress}%; height:100%; background:#4285F4;"></div></div></div>`).join(''); } };
+    const uploadQueue = { tasks: {}, updateUI() { const list = document.getElementById('global-upload-list'); list.innerHTML = Object.values(this.tasks).map(t => `<div style="background:rgba(255,255,255,0.9); padding:12px; border-radius:10px; margin-bottom:10px; box-shadow:0 8px 20px rgba(0,0,0,0.1); border-left:4px solid ${t.status==='done'?'#34A853':'#4285F4'}; backdrop-filter:blur(5px);"><div style="font-size:10px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.fileName}</div><div style="font-size:9px; color:#888; margin:4px 0;">${t.statusText}</div><div style="height:3px; background:#eee; width:100%; border-radius:2px; overflow:hidden;"><div style="width:${t.progress}%; height:100%; background:#4285F4; transition:0.3s;"></div></div></div>`).join(''); } };
 
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
         const fs = Array.from(e.target.files); const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         fs.forEach(async (file, idx) => {
-            const taskId = "t_" + Date.now() + "_" + idx; uploadQueue.tasks[taskId] = { fileName: file.name, progress: 10, status: 'uploading' }; uploadQueue.updateUI();
+            const taskId = "t_" + Date.now() + "_" + idx; 
+            const isLarge = file.size > 2 * 1024 * 1024;
+            uploadQueue.tasks[taskId] = { fileName: file.name, progress: 5, statusText: isLarge ? '建议压缩 (>2MB)...' : '正在读取...', startTime: Date.now() }; 
+            uploadQueue.updateUI();
+
             const r = new FileReader(); r.onload = async (re) => {
                 const item = createMiroItem(file.type.includes('image') ? `<img src="${re.target.result}">` : `<video src="${re.target.result}" autoplay loop muted></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
                 const b64 = re.target.result.split(',')[1];
                 const xhr = new XMLHttpRequest(); xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
                 xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-                xhr.upload.onprogress = (ev) => { uploadQueue.tasks[taskId].progress = 30 + Math.round((ev.loaded/ev.total)*65); uploadQueue.updateUI(); };
-                xhr.onload = () => { if(xhr.status<300){ const url = JSON.parse(xhr.responseText).content.download_url; item.querySelector('img, video').src = getAssetUrl(url); uploadQueue.tasks[taskId].status = 'done'; uploadQueue.updateUI(); saveToCloud(); setTimeout(()=> {delete uploadQueue.tasks[taskId]; uploadQueue.updateUI();}, 2000); } };
+                
+                xhr.upload.onprogress = (ev) => {
+                    const percent = Math.round((ev.loaded/ev.total)*90);
+                    const elapsed = (Date.now() - uploadQueue.tasks[taskId].startTime)/1000;
+                    const rem = ev.loaded > 0 ? Math.round((ev.total - ev.loaded) / (ev.loaded / elapsed)) : 0;
+                    uploadQueue.tasks[taskId].progress = 10 + percent;
+                    uploadQueue.tasks[taskId].statusText = `上传中: ${percent}% (约剩${rem}s)`;
+                    uploadQueue.updateUI();
+                };
+
+                xhr.onload = () => {
+                    if(xhr.status<300){
+                        const url = JSON.parse(xhr.responseText).content.download_url;
+                        item.querySelector('img, video').src = getAssetUrl(url);
+                        uploadQueue.tasks[taskId].status = 'done'; uploadQueue.tasks[taskId].statusText = '✅ 上传成功';
+                        uploadQueue.tasks[taskId].progress = 100; uploadQueue.updateUI();
+                        saveToCloud(); setTimeout(()=> {delete uploadQueue.tasks[taskId]; uploadQueue.updateUI();}, 2000);
+                    } else {
+                        uploadQueue.tasks[taskId].statusText = `❌ 失败: ${JSON.parse(xhr.responseText).message}`;
+                        uploadQueue.updateUI();
+                    }
+                };
+                xhr.onerror = () => { uploadQueue.tasks[taskId].statusText = "❌ 网络错误"; uploadQueue.updateUI(); };
                 xhr.send(JSON.stringify({message: "Upload", content: b64}));
             }; r.readAsDataURL(file);
         });
@@ -440,6 +423,16 @@
     window.onload = () => { if(CONFIG.token) { isAdmin = true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; } initParticles(); animate(); initSystem(); };
     window.onresize = () => { cvs.width=window.innerWidth; cvs.height=window.innerHeight; };
     document.getElementById('dynamicNav').innerHTML=['Architecture','Computational','Interest','Photo','Ongoing'].map(c=>`<a onclick="showLevel(3, '${c}')">${c}</a>`).join('');
+
+    window.addEventListener('beforeunload', () => {
+        if (isAdmin && currentLvl === 4 && currentProj) {
+            const data = btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id]))));
+            fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}/EXIT_${currentProj.id}_${Date.now()}.json`, {
+                method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` },
+                body: JSON.stringify({ message: "Exit Backup", content: data }), keepalive: true
+            });
+        }
+    });
 </script>
 </body>
 </html>
