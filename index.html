@@ -42,16 +42,26 @@
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
+        /* 辅助线与任务列表样式 */
         .guide-line { position: fixed; background: #4285F4; pointer-events: none; z-index: 10000; display: none; opacity: 0.6; }
         #guide-x { width: 1px; height: 100vh; top: 0; }
         #guide-y { height: 1px; width: 100vw; left: 0; }
+        #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 240px; z-index: 9999; pointer-events: none; }
+        .upload-task { background: rgba(255, 255, 255, 0.95); border: 1px solid #eee; padding: 12px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); pointer-events: auto; font-size: 10px; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .task-info { display: flex; justify-content: space-between; margin-bottom: 6px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+        .progress-bg { width: 100%; height: 3px; background: #f0f0f0; border-radius: 2px; overflow: hidden; }
+        .progress-fill { width: 0%; height: 100%; background: #4285F4; transition: width 0.2s ease; }
+        .task-status { margin-top: 4px; font-weight: bold; }
+        .task-status.success { color: #34A853; }
+        .task-status.error { color: #EA4335; }
+        .task-status.info { color: #4285F4; }
 
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
         .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; padding: 10px; }
-        #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 240px; z-index: 9999; pointer-events: none; }
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
     </style>
@@ -74,7 +84,7 @@
 <div id="lvl4" class="view-layer">
     <div class="lvl4-header" style="position: fixed; top: 100px; left: 60px; z-index: 7000; pointer-events: none;">
         <div id="lvl4CatTag" style="font-size: 0.45rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px;">CATEGORY</div>
-        <div id="lvl4Title" style="pointer-events: auto; outline:none; font-size: 1.5rem; font-weight: 200;" contenteditable="true" onblur="saveToCloud()">PROJECT TITLE</div>
+        <div id="lvl4Title" style="pointer-events: auto; outline:none; font-size: 1.5rem; font-weight: 200;" contenteditable="false" onblur="saveToCloud()">PROJECT TITLE</div>
     </div>
     <div id="miro-viewport">
         <div id="guide-x" class="guide-line"></div>
@@ -114,7 +124,6 @@
     const SNAP_THRESHOLD = 10, gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
 
     async function initSystem() {
-        // 关键修复：即使没有 token，也要尝试获取公开数据
         const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
         try {
             const headers = CONFIG.token ? {'Authorization': `token ${CONFIG.token}`} : {};
@@ -123,7 +132,7 @@
                 const json = await res.json();
                 portfolio_data = JSON.parse(decodeURIComponent(escape(atob(json.content))));
             }
-        } catch(e) { console.error("Init failed", e); }
+        } catch(e) {}
         document.getElementById('loading-bar').style.width = "100%";
         setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; if(currentLvl === 2) renderCatGrid(); }, 500);
     }
@@ -149,37 +158,49 @@
                 method: 'PUT', headers: {'Authorization': `token ${CONFIG.token}`}, 
                 body: JSON.stringify({ message: "Sync Data", content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2)))), sha })
             }); 
-        } catch (e) { console.error("Sync Error:", e); }
+        } catch (e) {}
         isSaving = false;
         if (savePending) { savePending = false; saveToCloud(); }
     }
 
     async function runAutoBackup(reason = "Auto") {
         if (!isAdmin || !CONFIG.token || !currentProj) return;
+        const container = document.getElementById('global-upload-list');
+        const taskId = "backup_" + Date.now();
+        const currentTitle = document.getElementById('lvl4Title').innerText.trim();
+        const projName = (currentTitle || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+        
+        container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>BACKUP: ${projName.substring(0,10)}</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status info">INITIALIZING...</div></div>`);
+        const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent'), sText = taskEl.querySelector('.task-status');
+        const updateUI = (p, s) => { fill.style.width = p + '%'; pText.innerText = p + '%'; sText.innerText = s; };
+
         try {
-            const now = new Date();
-            const bbb = now.toISOString().split('T')[0].replace(/-/g, '');
-            const ccc = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
-            const catPrefix = currentCat[0].toUpperCase();
-            const projName = (document.getElementById('lvl4Title').innerText || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
-            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const headers = { 'Authorization': `token ${CONFIG.token}` };
+            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             
+            updateUI(20, "SCANNING REPOSITORY...");
             const res = await fetch(listUrl, { headers });
             let nextNum = 1;
             if (res.ok) {
                 const files = await res.json();
-                const pFiles = files.filter(f => f.name.startsWith(`${catPrefix}_${projName}_`)).sort((a,b)=>b.name.localeCompare(a.name));
+                const pFiles = files.filter(f => f.name.startsWith(`${currentCat[0].toUpperCase()}_${projName}_`)).sort((a,b)=>b.name.localeCompare(a.name));
                 if (pFiles.length >= 5) {
-                    for (let f of pFiles.slice(4)) { 
-                        await fetch(`${listUrl}/${f.name}`, { method: 'DELETE', headers, body: JSON.stringify({ message: "Clean", sha: f.sha }) });
-                    }
+                    updateUI(40, `CLEANING OLD BACKUPS...`);
+                    for (let f of pFiles.slice(4)) { await fetch(`${listUrl}/${f.name}`, { method: 'DELETE', headers, body: JSON.stringify({ message: "Roll", sha: f.sha }) }); }
                 }
-                if (pFiles.length > 0) nextNum = parseInt(pFiles[0].name.split('_').pop()) + 1;
+                if (pFiles.length > 0) nextNum = (parseInt(pFiles[0].name.split('_').pop()) || 0) + 1;
             }
-            const fileName = `${catPrefix}_${projName}_${bbb}_${ccc}_${nextNum.toString().padStart(2, '0')}.json`;
-            await fetch(`${listUrl}/${fileName}`, { method: 'PUT', headers, body: JSON.stringify({ message: `Backup: ${projName}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) }) });
-        } catch (e) {}
+
+            updateUI(70, "COMPRESSING DATA...");
+            const now = new Date(), bbb = now.toISOString().split('T')[0].replace(/-/g, ''), ccc = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
+            const fileName = `${currentCat[0].toUpperCase()}_${projName}_${bbb}_${ccc}_${nextNum.toString().padStart(2,'0')}.json`;
+            
+            updateUI(90, "UPLOADING TO CLOUD...");
+            const upRes = await fetch(`${listUrl}/${fileName}`, { method: 'PUT', headers, body: JSON.stringify({ message: `Backup: ${projName}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) }) });
+            
+            if (upRes.ok) { updateUI(100, "SUCCESSFULLY BACKED UP"); sText.className = "task-status success"; setTimeout(() => taskEl.remove(), 4000); }
+            else throw new Error();
+        } catch (e) { updateUI(100, "BACKUP ERROR"); sText.className = "task-status error"; }
     }
 
     function autoFitView() {
@@ -187,10 +208,8 @@
         if (items.length === 0) { zoom = 1; panX = 0; panY = 0; updateViewport(); return; }
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         items.forEach(el => {
-            const x = parseInt(el.style.left), y = parseInt(el.style.top);
-            const w = parseInt(el.style.width), h = el.offsetHeight || 200;
-            minX = Math.min(minX, x); minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+            const x = parseInt(el.style.left), y = parseInt(el.style.top), w = parseInt(el.style.width), h = el.offsetHeight || 200;
+            minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
         });
         const cW = maxX - minX, cH = maxY - minY, pad = 120;
         zoom = Math.min((window.innerWidth - pad)/cW, (window.innerHeight - pad)/cH, 1.1);
@@ -199,43 +218,40 @@
         updateViewport();
     }
 
-    async function showGlobalRestoreList() {
-        if (!isAdmin) return;
-        try {
-            const res = await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`, { headers: {'Authorization': `token ${CONFIG.token}`} });
-            const files = await res.json();
-            const choice = prompt(`恢复到【${currentCat}】：\n` + files.sort((a,b)=>b.name.localeCompare(a.name)).slice(0,15).map((f,i)=>`${i+1}. ${f.name}`).join('\n'));
-            if(choice && files[choice-1]){
-                const data = await (await fetch(files[choice-1].download_url)).json();
-                const newId = currentCat[0].toLowerCase() + Date.now(); portfolio_data[newId] = data;
-                await saveToCloud(); renderProjGrid(); alert("✅ 恢复成功");
-            }
-        } catch(e) {}
-    }
+    async function handleUpload(e) {
+        if(!isAdmin || !currentProj) return;
+        const fs = Array.from(e.target.files), container = document.getElementById('global-upload-list');
+        const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
 
-    function renderCatGrid() { 
-        const cats=['Architecture','Computational','Interest','Photo','Ongoing']; 
-        document.getElementById('catGrid').innerHTML=cats.map(cat=>{
-            const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); 
-            const t=(ps.length&&portfolio_data[ps[0]].thumbs)?getAssetUrl(portfolio_data[ps[0]].thumbs[0]):''; 
-            return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;
-        }).join(''); 
-    }
+        fs.forEach((file, idx) => {
+            const taskId = "t_" + Date.now() + "_" + idx;
+            container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>${file.name.substring(0, 12)}...</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status" style="display:none;"></div></div>`);
+            const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent');
 
-    function renderProjGrid() { 
-        const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); 
-        document.getElementById('projGrid').innerHTML=ps.map(p=>{
-            const t=(p.thumbs||[]).map(url => getAssetUrl(url)); 
-            const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : '';
-            return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;
-        }).join(''); 
+            const r = new FileReader();
+            r.onload = (re) => {
+                const item = createMiroItem(file.type.includes('image') ? `<img src="${re.target.result}" style="opacity:0.5">` : `<video src="${re.target.result}" muted style="opacity:0.5"></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
+                const xhr = new XMLHttpRequest();
+                xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
+                xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
+                xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) { const p = Math.round((ev.loaded/ev.total)*100); fill.style.width = p+'%'; pText.innerText = p+'%'; } };
+                xhr.onload = () => {
+                    if (xhr.status < 300) {
+                        const mEl = item.querySelector('img, video'); mEl.src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); mEl.style.opacity = "1";
+                        taskEl.querySelector('.task-status').innerText = "SUCCESS"; taskEl.querySelector('.task-status').className = "task-status success"; taskEl.querySelector('.task-status').style.display = "block";
+                        saveToCloud(); setTimeout(() => taskEl.remove(), 3000);
+                    } else { taskEl.querySelector('.task-status').innerText = "FAILED"; taskEl.querySelector('.task-status').className = "task-status error"; taskEl.querySelector('.task-status').style.display = "block"; }
+                };
+                xhr.send(JSON.stringify({message: "Upload", content: re.target.result.split(',')[1]}));
+            };
+            r.readAsDataURL(file);
+        });
     }
 
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
-        const speedContent = content.replace(/src="([^"]+)"/g, (match, p1) => `src="${getAssetUrl(p1)}"`);
-        d.innerHTML = `<div class="crop-container">${speedContent}</div><div class="resize-handle"></div>`;
+        d.innerHTML = `<div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div><div class="resize-handle"></div>`;
         d.onmousedown = (e) => {
             if(!isAdmin || e.button !== 0) return;
             e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
@@ -313,7 +329,17 @@
         document.getElementById('restoreProjBtn').style.display=isL3A?'block':'none';
     }
 
-    // 初始化粒子和其他基础功能
+    async function manualSaveWithBackup() {
+        const btn = document.getElementById('manualSaveBtn');
+        try {
+            btn.innerText = "SAVING JSON..."; btn.style.background = "#4285F4";
+            await saveToCloud();
+            await runAutoBackup("Manual");
+            btn.innerText = "ALL SYNCED"; btn.style.background = "#34A853";
+            setTimeout(() => { btn.innerText = "SAVE & BACKUP"; btn.style.background = "#000"; }, 3000);
+        } catch (e) { btn.innerText = "SYNC FAILED"; btn.style.background = "#EA4335"; }
+    }
+
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', ev => { m.x = ev.clientX; m.y = ev.clientY; });
@@ -328,22 +354,10 @@
         }
     }
 
-    async function handleUpload(e) {
-        if(!isAdmin || !currentProj) return;
-        const fs = Array.from(e.target.files), dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
-        fs.forEach(async (file, idx) => {
-            const r = new FileReader(); r.onload = async (re) => {
-                const item = createMiroItem(file.type.includes('image') ? `<img src="${re.target.result}">` : `<video src="${re.target.result}" autoplay loop muted></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
-                const xhr = new XMLHttpRequest(); xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
-                xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-                xhr.onload = () => { if(xhr.status < 300){ item.querySelector('img, video').src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); saveToCloud(); } };
-                xhr.send(JSON.stringify({message: "Upload", content: re.target.result.split(',')[1]}));
-            }; r.readAsDataURL(file);
-        });
-    }
-
     function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
     function addText() { createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px;">Double Click to Edit...</div>`,'500px','500px','250px'); saveHistory(); }
+    function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?getAssetUrl(portfolio_data[ps[0]].thumbs[0]):''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
+    function renderProjGrid() { const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); document.getElementById('projGrid').innerHTML=ps.map(p=>{const t=(p.thumbs||[]).map(url => getAssetUrl(url)); const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : ''; return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;}).join(''); }
     function createNewProject() { const title = prompt("Title:"); if(!title) return; const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = { title, layout: [], thumbs: [] }; saveToCloud().then(() => renderProjGrid()); }
     async function deleteProject(id, title) { if (prompt(`Delete [ ${title} ]? Type name:`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); } }
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
@@ -351,7 +365,6 @@
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
     function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
-    
     window.onload = () => { if(CONFIG.token) { isAdmin = true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; } initParticles(); animate(); initSystem(); };
     window.onresize = () => { cvs.width=window.innerWidth; cvs.height=window.innerHeight; };
     document.getElementById('dynamicNav').innerHTML=['Architecture','Computational','Interest','Photo','Ongoing'].map(c=>`<a onclick="showLevel(3, '${c}')">${c}</a>`).join('');
