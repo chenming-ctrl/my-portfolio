@@ -42,12 +42,10 @@
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
-        /* 文字卡片专用样式 */
-        .miro-item.editing { z-index: 10000 !important; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
-        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: white; padding: 6px 12px; border-radius: 8px; display: none; gap: 10px; align-items: center; z-index: 10001; }
+        /* 文字编辑工具栏 */
+        .text-toolbar { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: white; padding: 5px 10px; border-radius: 6px; display: none; gap: 8px; z-index: 10001; }
         .miro-item.editing .text-toolbar { display: flex; }
-        .text-toolbar button, .text-toolbar select { background: transparent; border: none; color: white; cursor: pointer; font-size: 12px; outline: none; }
-        .text-toolbar select option { background: #1a1a1a; }
+        .text-toolbar button { background: transparent; border: none; color: white; cursor: pointer; font-size: 12px; }
 
         .guide-line { position: absolute; background: rgba(66, 133, 244, 0.4); pointer-events: none; z-index: 5000; display: none; }
         #guide-x { width: 1px; height: 20000px; top: -10000px; border-left: 1px dashed #4285F4; }
@@ -110,8 +108,6 @@
         backupDir: 'backups',
         get token() { return (localStorage.getItem('gh_token') || '').trim(); }
     };
-
-    const ARCHI_FONTS = ["'Helvetica Neue'", "'Arial'", "'Georgia'", "'Courier New'"];
 
     function getAssetUrl(rawUrl) {
         if (!rawUrl || !rawUrl.includes('github.com')) return rawUrl;
@@ -191,48 +187,47 @@
         } catch (e) { alert("获取备份失败"); }
     }
 
-    // 三级页面强化版 Restore：支持序号/文件名分类检索
+    // 强化版三级页面 Restore：支持序号、完整文件名、跨分类搜索
     async function showGlobalRestoreList() {
         if (!isAdmin) return;
-        const btn = document.getElementById('restoreProjBtn');
-        const originalText = "↺ RESTORE PROJECT";
         try {
-            btn.innerText = "⏳ FETCHING BACKUPS...";
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
-            if (!res.ok) throw new Error("无法读取备份目录");
-            
+            if(!res.ok) throw new Error("获取备份列表失败");
             const files = await res.json();
-            const prefix = currentCat[0].toLowerCase();
-            const backups = files.filter(f => f.name.startsWith(prefix)).sort((a, b) => b.name.localeCompare(a.name));
-
-            if (backups.length === 0) { alert("当前分类暂无项目备份。"); btn.innerText = originalText; return; }
-
-            let msg = `当前分类 [${currentCat}] 的可用备份：\n`;
-            msg += backups.slice(0, 20).map((f, i) => `${i + 1}. ${f.name}`).join('\n');
-            msg += "\n\n请输入 序号 或 完整文件名：";
             
-            const input = prompt(msg);
-            if (!input) { btn.innerText = originalText; return; }
+            // 按当前分类过滤以便显示序号建议
+            const prefix = currentCat[0].toLowerCase();
+            const catBackups = files.filter(f => f.name.startsWith(prefix)).sort((a, b) => b.name.localeCompare(a.name));
+            
+            let tip = `找回已删除的项目 (最近15个相关项)：\n` + 
+                      catBackups.slice(0,15).map((f, i) => `${i+1}. ${f.name}`).join('\n') +
+                      `\n\n请输入序号 或 完整文件名（支持跨分类）：`;
+            
+            const choice = prompt(tip);
+            if (!choice) return;
 
-            let target;
-            if (!isNaN(input) && backups[parseInt(input)-1]) { target = backups[parseInt(input)-1]; }
-            else { target = backups.find(f => f.name === input.trim()); }
+            let file;
+            if (!isNaN(choice) && catBackups[parseInt(choice)-1]) {
+                file = catBackups[parseInt(choice)-1];
+            } else {
+                // 如果输入的是文件名，则在所有备份文件中全局查找
+                file = files.find(f => f.name === choice.trim());
+            }
 
-            if (target) {
-                btn.innerText = "⏳ RESTORING...";
-                const fileRes = await fetch(target.download_url);
-                const backupData = await fileRes.json();
-                if (!backupData.title || !Array.isArray(backupData.layout)) throw new Error("文件损坏");
-                
-                const rid = target.name.split('_')[0];
-                portfolio_data[rid] = backupData;
-                btn.innerText = "⏳ SYNCING...";
-                await saveToCloud();
-                renderProjGrid();
-                alert("✅ 成功恢复并找回项目！");
-            } else { alert("❌ 未找到指定的备份。"); }
-        } catch (e) { alert("找回失败: " + e.message); } finally { btn.innerText = originalText; }
+            if (file) {
+                const id = file.name.split('_')[0]; // 从文件名提取项目ID
+                if(portfolio_data[id] && !confirm("项目已存在，是否覆盖？")) return;
+                const r = await fetch(file.download_url); 
+                const data = await r.json();
+                portfolio_data[id] = data; 
+                await saveToCloud(); 
+                renderProjGrid(); 
+                alert("项目已成功恢复！");
+            } else {
+                alert("❌ 未找到匹配的文件，请确保文件名拼写（含.json后缀）完全正确。");
+            }
+        } catch (e) { alert("操作失败: " + e.message); }
     }
 
     async function manualSaveWithBackup() {
@@ -269,17 +264,28 @@
         }).join(''); 
     }
 
-    // 重构版文字卡片绑定逻辑
-    function bindTextEvents(item) {
-        const editArea = item.querySelector('.editable-content');
-        if (!editArea) return;
-        item.ondblclick = (e) => {
-            if (!isAdmin) return; e.stopPropagation();
-            item.classList.add('editing'); editArea.contentEditable = "true";
-            editArea.focus(); isDragging = false; dragTarget = null;
+    // 修复：文字卡片编辑逻辑及事件绑定
+    function bindTextEvents(d) {
+        const edit = d.querySelector('[contenteditable]');
+        if(!edit) return;
+        edit.contentEditable = "false";
+        d.ondblclick = (e) => { 
+            if(!isAdmin) return; 
+            e.stopPropagation(); 
+            d.classList.add('editing');
+            edit.contentEditable = "true"; 
+            edit.focus(); 
+            isDragging = false; 
+            dragTarget = null; 
+        }; 
+        edit.onblur = () => { 
+            d.classList.remove('editing');
+            edit.contentEditable = "false"; 
+            saveHistory(); 
+            saveToCloud(); 
         };
-        editArea.onblur = () => { item.classList.remove('editing'); editArea.contentEditable = "false"; saveToCloud(); };
-        editArea.onmousedown = (e) => { if (item.classList.contains('editing')) e.stopPropagation(); };
+        // 阻止编辑时的点击穿透
+        edit.onmousedown = (e) => { if(edit.contentEditable === "true") e.stopPropagation(); };
     }
 
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
@@ -289,24 +295,18 @@
         d.innerHTML = `<div class="crop-container">${speedContent}</div><div class="resize-handle"></div>`;
         
         d.onmousedown = (e) => {
-            if (d.classList.contains('editing') || !isAdmin || e.button !== 0) return;
+            const edit = d.querySelector('[contenteditable]');
+            if ((edit && edit.contentEditable === "true") || !isAdmin || e.button !== 0) return;
             e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
             d.classList.add('selected'); vp.appendChild(d); isDragging = true; dragTarget = d;
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
 
-        if(content.includes('editable-content')) bindTextEvents(d);
+        if(content.includes('contenteditable')) bindTextEvents(d);
 
         const rh = d.querySelector('.resize-handle');
         rh.onmousedown = (e) => { e.stopPropagation(); e.preventDefault(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
-    }
-
-    function addText() {
-        const fontOpts = ARCHI_FONTS.map(f => `<option value="${f}">${f.replace(/'/g,'')}</option>`).join('');
-        const html = `<div class="text-toolbar"><select onchange="document.execCommand('fontName',false,this.value)">${fontOpts}</select><button onclick="document.execCommand('bold')">B</button><button onclick="document.execCommand('fontSize', false, '5')">H</button><button onclick="document.execCommand('justifyLeft')">L</button></div><div class="editable-content" style="padding:25px; min-width:150px; cursor:text; font-family:'Helvetica Neue'; font-weight:300; font-size:16px;">New Concept...</div>`;
-        const item = createMiroItem(html, '500px', '500px', '400px', 'auto');
-        saveHistory();
     }
 
     function saveHistory() {
@@ -346,7 +346,7 @@
     bd.addEventListener('wheel', e => { if(currentLvl === 4) { e.preventDefault(); const f = Math.pow(1.1, -e.deltaY/120); const nz = Math.min(Math.max(zoom * f, 0.05), 5); panX = e.clientX - (e.clientX - panX) * (nz/zoom); panY = e.clientY - (e.clientY - panY) * (nz/zoom); zoom = nz; updateViewport(); } }, {passive:false});
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
 
-    const uploadQueue = { tasks: {}, updateUI() { const list = document.getElementById('global-upload-list'); list.innerHTML = Object.values(this.tasks).map(t => `<div style="background:rgba(255,255,255,0.9); padding:12px; border-radius:10px; margin-bottom:10px; box-shadow:0 8px 20px rgba(0,0,0,0.1); border-left:4px solid ${t.status==='done'?'#34A853':'#4285F4'}; backdrop-filter:blur(5px);"><div style="font-size:10px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.fileName}</div><div style="font-size:9px; color:#888; margin:4px 0;">${t.statusText}</div><div style="height:3px; background:#eee; width:100%; border-radius:2px; overflow:hidden;"><div style="width:${t.progress}%; height:100%; background:#4285F4; transition:0.3s;"></div></div></div>`).join(''); } };
+    const uploadQueue = { tasks: {}, updateUI() { const list = document.getElementById('global-upload-list'); list.innerHTML = Object.values(this.tasks).map(t => `<div style="background:rgba(255,255,255,0.9); padding:12px; border-radius:10px; margin-bottom:10px; box-shadow:0 8px 20px rgba(0,0,0,0.1); border-left:4px solid ${t.status==='done'?'#34A853':'#4285F4'}; backdrop-filter:blur(5px);"><div style="font-size:10px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.fileName}</div><div style="font-size:9px; color:#888; margin:4px 0;">${t.statusText}</div><div style="height:3px; background:#eee; width:100%; border-radius:2px; overflow:hidden;"><div style="width:${t.progress}%; height:100%; background:${t.status==='error'?'#ff4335':'#4285F4'}; transition:0.3s;"></div></div></div>`).join(''); } };
 
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
@@ -354,7 +354,7 @@
         fs.forEach(async (file, idx) => {
             const taskId = "t_" + Date.now() + "_" + idx; 
             const isLarge = file.size > 2 * 1024 * 1024;
-            uploadQueue.tasks[taskId] = { fileName: file.name, progress: 5, statusText: isLarge ? '建议压缩 (>2MB)...' : '正在读取...', startTime: Date.now() }; 
+            uploadQueue.tasks[taskId] = { fileName: file.name, progress: 10, status: 'uploading', statusText: isLarge ? '文件较大(>2MB)建议压缩, 正在同步...' : '正在同步...', startTime: Date.now() }; 
             uploadQueue.updateUI();
 
             const r = new FileReader(); r.onload = async (re) => {
@@ -364,23 +364,30 @@
                 xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
                 
                 xhr.upload.onprogress = (ev) => {
-                    const percent = Math.round((ev.loaded/ev.total)*90);
-                    const elapsed = (Date.now() - uploadQueue.tasks[taskId].startTime)/1000;
-                    const rem = ev.loaded > 0 ? Math.round((ev.total - ev.loaded) / (ev.loaded / elapsed)) : 0;
-                    uploadQueue.tasks[taskId].progress = 10 + percent;
-                    uploadQueue.tasks[taskId].statusText = `上传中: ${percent}% (约剩${rem}s)`;
-                    uploadQueue.updateUI();
+                    if (ev.lengthComputable) {
+                        const percent = Math.round((ev.loaded / ev.total) * 90);
+                        const elapsed = (Date.now() - uploadQueue.tasks[taskId].startTime) / 1000;
+                        const remTime = Math.round((ev.total - ev.loaded) / (ev.loaded / elapsed || 1));
+                        uploadQueue.tasks[taskId].progress = 10 + percent;
+                        uploadQueue.tasks[taskId].statusText = `上传中: ${percent}% (约剩${remTime}s)`;
+                        uploadQueue.updateUI();
+                    }
                 };
 
                 xhr.onload = () => {
-                    if(xhr.status<300){
+                    if(xhr.status < 300){
                         const url = JSON.parse(xhr.responseText).content.download_url;
                         item.querySelector('img, video').src = getAssetUrl(url);
-                        uploadQueue.tasks[taskId].status = 'done'; uploadQueue.tasks[taskId].statusText = '✅ 上传成功';
-                        uploadQueue.tasks[taskId].progress = 100; uploadQueue.updateUI();
-                        saveToCloud(); setTimeout(()=> {delete uploadQueue.tasks[taskId]; uploadQueue.updateUI();}, 2000);
+                        uploadQueue.tasks[taskId].status = 'done';
+                        uploadQueue.tasks[taskId].statusText = '✅ 上传成功';
+                        uploadQueue.tasks[taskId].progress = 100;
+                        uploadQueue.updateUI();
+                        saveToCloud();
+                        setTimeout(() => { delete uploadQueue.tasks[taskId]; uploadQueue.updateUI(); }, 2000);
                     } else {
-                        uploadQueue.tasks[taskId].statusText = `❌ 失败: ${JSON.parse(xhr.responseText).message}`;
+                        const errMsg = JSON.parse(xhr.responseText).message;
+                        uploadQueue.tasks[taskId].status = 'error';
+                        uploadQueue.tasks[taskId].statusText = `❌ 失败: ${errMsg}`;
                         uploadQueue.updateUI();
                     }
                 };
@@ -416,6 +423,12 @@
     async function deleteProject(id, title) { if (prompt(`Delete [ ${title} ]? Type name:`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); } }
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
     function handleBack() { if (currentLvl === 4) { if(isAdmin) runAutoBackup("BackBtn"); showLevel(3); } else if (currentLvl === 3) showLevel(2); else showLevel(1); }
+    
+    function addText() { 
+        createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; font-family:'Helvetica Neue';">Double Click to Edit...</div>`,'500px','500px','250px'); 
+        saveHistory(); 
+    }
+    
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
     function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
