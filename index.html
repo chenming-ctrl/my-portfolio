@@ -42,14 +42,6 @@
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
-        /* 文本卡片及编辑样式 */
-        .text-toolbar { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: white; padding: 5px 10px; border-radius: 6px; display: none; gap: 8px; z-index: 10001; }
-        .miro-item.editing .text-toolbar { display: flex; }
-        .text-toolbar button { background: transparent; border: none; color: white; cursor: pointer; font-size: 12px; }
-
-        .guide-line { position: absolute; background: rgba(66, 133, 244, 0.4); pointer-events: none; z-index: 5000; display: none; }
-        #guide-x { width: 1px; height: 20000px; top: -10000px; border-left: 1px dashed #4285F4; }
-        #guide-y { height: 1px; width: 20000px; left: -10000px; border-top: 1px dashed #4285F4; }
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
@@ -147,26 +139,78 @@
         if (savePending) { savePending = false; saveToCloud(); }
     }
 
+    // 规范化备份：A_ProjectName_Date_Time_Serial.json
     async function runAutoBackup(reason = "Auto") {
         if (!isAdmin || !currentProj) return;
         try {
-            const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-            const projectID = currentProj.id;
+            const now = new Date();
+            const bbb = now.toISOString().split('T')[0].replace(/-/g, ''); // BBB: YYYYMMDD
+            const ccc = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0'); // CCC: HHMM
+            const catPrefix = currentCat[0].toUpperCase(); // A
+            const projName = (currentProj.title || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, ''); // XXX
+            
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
-            let backups = [];
+            
+            let nextNum = 1;
             if (res.ok) {
                 const files = await res.json();
-                backups = files.filter(f => f.name.startsWith(projectID)).sort((a, b) => a.name.localeCompare(b.name));
+                const projectFiles = files.filter(f => f.name.startsWith(`${catPrefix}_${projName}_`));
+                if (projectFiles.length > 0) {
+                    const nums = projectFiles.map(f => {
+                        const parts = f.name.split('_');
+                        const lastPart = parts[parts.length - 1].split('.')[0];
+                        return parseInt(lastPart) || 0;
+                    });
+                    nextNum = Math.max(...nums) + 1;
+                }
             }
-            const lastFile = backups[backups.length - 1];
-            let nextNum = lastFile ? (parseInt(lastFile.name.split('_').pop()) + 1) : 1;
-            const fileName = `${projectID}_${dateStr}_${nextNum.toString().padStart(2, '0')}.json`;
+            const serial = nextNum.toString().padStart(2, '0'); // 01
+            const fileName = `${catPrefix}_${projName}_${bbb}_${ccc}_${serial}.json`;
+
             await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}/${fileName}`, {
                 method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` },
                 body: JSON.stringify({ message: `Backup [${reason}]: ${currentProj.title}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) })
             });
-        } catch (e) { console.error("Backup Failed:", e); }
+            console.log("已生成备份:", fileName);
+        } catch (e) { console.error("备份失败:", e); }
+    }
+
+    // 全局恢复逻辑：支持强制归属当前分类
+    async function showGlobalRestoreList() {
+        if (!isAdmin) return;
+        try {
+            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
+            const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
+            if(!res.ok) throw new Error("读取备份失败");
+            const files = await res.json();
+            
+            const sortedFiles = files.sort((a, b) => b.name.localeCompare(a.name));
+            let tip = `恢复到【${currentCat}】分类：\n` + 
+                      sortedFiles.slice(0,15).map((f, i) => `${i+1}. ${f.name}`).join('\n') +
+                      `\n\n请输入序号或完整文件名：`;
+            
+            const choice = prompt(tip);
+            if (!choice) return;
+
+            let file = (!isNaN(choice) && sortedFiles[parseInt(choice)-1]) ? sortedFiles[parseInt(choice)-1] : files.find(f => f.name.trim() === choice.trim());
+
+            if (file) {
+                const r = await fetch(file.download_url); 
+                const data = await r.json();
+                if(!data.title || !data.layout) throw new Error("数据不完整");
+
+                // 生成新 ID 强制归属当前三级分类
+                const newId = currentCat[0].toLowerCase() + Date.now(); 
+                portfolio_data[newId] = data; 
+                
+                await saveToCloud(); 
+                renderProjGrid(); 
+                alert(`✅ 已找回！项目 "${data.title}" 已强制移动到 ${currentCat}。`);
+            } else {
+                alert("❌ 未找到匹配的文件。");
+            }
+        } catch (e) { alert("找回失败: " + e.message); }
     }
 
     async function showRestoreList() {
@@ -175,68 +219,16 @@
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
             const files = await res.json();
-            const pbs = files.filter(f => f.name.startsWith(currentProj.id)).sort((a, b) => b.name.localeCompare(a.name));
-            if (pbs.length === 0) { alert("暂无备份。"); return; }
-            const choice = prompt(`输入编号恢复 (1-${pbs.length})：\n` + pbs.map((f, i) => `${i+1}. ${f.name}`).join('\n'));
+            const pbs = files.filter(f => f.name.includes(`_${(currentProj.title||"").replace(/\s+/g,'')}_`)).sort((a, b) => b.name.localeCompare(a.name));
+            if (pbs.length === 0) { alert("暂无相关备份。"); return; }
+            const choice = prompt(`恢复当前项目版本：\n` + pbs.map((f, i) => `${i+1}. ${f.name}`).join('\n'));
             if (choice && pbs[choice-1]) {
                 const r = await fetch(pbs[choice-1].download_url);
                 const data = await r.json();
                 portfolio_data[currentProj.id] = data; currentProj = {id: currentProj.id, ...data};
-                showLevel(4); await saveToCloud(); alert("已恢复！");
+                showLevel(4); await saveToCloud(); alert("版本已回滚！");
             }
         } catch (e) { alert("获取备份失败"); }
-    }
-
-    // 强化恢复逻辑：带诊断输出和跨分类搜索
-    async function showGlobalRestoreList() {
-        if (!isAdmin) return;
-        console.log("--- 诊断模式：启动全局找回 ---");
-        try {
-            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
-            const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
-            if(!res.ok) throw new Error("无法读取备份目录，请检查权限");
-            const files = await res.json();
-            
-            // 默认显示当前分类下的前15个建议
-            const prefix = currentCat[0].toLowerCase();
-            const catBackups = files.filter(f => f.name.startsWith(prefix)).sort((a, b) => b.name.localeCompare(a.name));
-            
-            let tip = `诊断与恢复：请输入序号或【完整文件名】\n` + 
-                      catBackups.slice(0,15).map((f, i) => `${i+1}. ${f.name}`).join('\n') +
-                      `\n\n注意：如果跨分类找回，请直接输入完整文件名（含.json）。`;
-            
-            const choice = prompt(tip);
-            if (!choice) return;
-
-            let file = (!isNaN(choice) && catBackups[parseInt(choice)-1]) ? catBackups[parseInt(choice)-1] : files.find(f => f.name === choice.trim());
-
-            if (file) {
-                console.log("正在下载:", file.name);
-                const r = await fetch(file.download_url); 
-                const data = await r.json();
-                
-                // 校验数据完整性
-                if(!data.title || !data.layout) {
-                    console.error("非法数据结构:", data);
-                    alert("❌ 恢复失败：该备份文件不包含有效的项目数据。");
-                    return;
-                }
-
-                const id = file.name.split('_')[0]; 
-                console.log("解析出的 ID:", id);
-                
-                portfolio_data[id] = data; 
-                await saveToCloud(); 
-                
-                // 强制重绘 UI
-                if(currentLvl === 3) renderProjGrid();
-                if(currentLvl === 2) renderCatGrid();
-                
-                alert(`✅ 成功！项目 "${data.title}" 已恢复。\nID识别为: ${id}\n请在对应的分类下查看。`);
-            } else {
-                alert("❌ 未找到匹配的文件，请检查拼写是否完全一致。");
-            }
-        } catch (e) { alert("操作失败: " + e.message); }
     }
 
     async function manualSaveWithBackup() {
@@ -273,47 +265,19 @@
         }).join(''); 
     }
 
-    // 文字编辑逻辑：修复双击和编辑模式
-    function bindTextEvents(d) {
-        const edit = d.querySelector('[contenteditable]');
-        if(!edit) return;
-        edit.contentEditable = "false";
-        d.ondblclick = (e) => { 
-            if(!isAdmin) return; 
-            e.stopPropagation(); 
-            d.classList.add('editing');
-            edit.contentEditable = "true"; 
-            edit.focus(); 
-            isDragging = false; 
-            dragTarget = null; 
-        }; 
-        edit.onblur = () => { 
-            d.classList.remove('editing');
-            edit.contentEditable = "false"; 
-            saveHistory(); 
-            saveToCloud(); 
-        };
-        edit.onmousedown = (e) => { if(edit.contentEditable === "true") e.stopPropagation(); };
-    }
-
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
         const speedContent = content.replace(/src="([^"]+)"/g, (match, p1) => `src="${getAssetUrl(p1)}"`);
         d.innerHTML = `<div class="crop-container">${speedContent}</div><div class="resize-handle"></div>`;
-        
         d.onmousedown = (e) => {
-            const edit = d.querySelector('[contenteditable]');
-            if ((edit && edit.contentEditable === "true") || !isAdmin || e.button !== 0) return;
+            if(!isAdmin || e.button !== 0) return;
             e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
             d.classList.add('selected'); vp.appendChild(d); isDragging = true; dragTarget = d;
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
-
-        if(content.includes('contenteditable')) bindTextEvents(d);
-
         const rh = d.querySelector('.resize-handle');
-        rh.onmousedown = (e) => { e.stopPropagation(); e.preventDefault(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
+        rh.onmousedown = (e) => { e.stopPropagation(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
     }
 
@@ -322,13 +286,6 @@
         historyStack.push(JSON.stringify(state)); if(historyStack.length > 30) historyStack.shift();
     }
     
-    function undo() {
-        if(historyStack.length <= 1) return; historyStack.pop();
-        const prevState = JSON.parse(historyStack[historyStack.length - 1]);
-        Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
-        prevState.forEach(it => createMiroItem(it.html, it.x, it.y, it.w, it.h));
-    }
-
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
@@ -361,47 +318,30 @@
         const fs = Array.from(e.target.files); const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         fs.forEach(async (file, idx) => {
             const taskId = "t_" + Date.now() + "_" + idx; 
-            const isLarge = file.size > 2 * 1024 * 1024;
-            uploadQueue.tasks[taskId] = { fileName: file.name, progress: 10, status: 'uploading', statusText: isLarge ? '文件较大(>2MB)建议压缩, 正在同步...' : '正在同步...', startTime: Date.now() }; 
+            uploadQueue.tasks[taskId] = { fileName: file.name, progress: 10, status: 'uploading', statusText: '正在同步...', startTime: Date.now() }; 
             uploadQueue.updateUI();
-
             const r = new FileReader(); r.onload = async (re) => {
                 const item = createMiroItem(file.type.includes('image') ? `<img src="${re.target.result}">` : `<video src="${re.target.result}" autoplay loop muted></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
                 const b64 = re.target.result.split(',')[1];
                 const xhr = new XMLHttpRequest(); xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
                 xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-                
-                xhr.upload.onprogress = (ev) => {
-                    if (ev.lengthComputable) {
-                        const percent = Math.round((ev.loaded / ev.total) * 90);
-                        const elapsed = (Date.now() - uploadQueue.tasks[taskId].startTime) / 1000;
-                        const remTime = Math.round((ev.total - ev.loaded) / (ev.loaded / elapsed || 1));
-                        uploadQueue.tasks[taskId].progress = 10 + percent;
-                        uploadQueue.tasks[taskId].statusText = `上传中: ${percent}% (约剩${remTime}s)`;
-                        uploadQueue.updateUI();
-                    }
-                };
-
+                xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) { uploadQueue.tasks[taskId].progress = 10 + Math.round((ev.loaded / ev.total) * 90); uploadQueue.updateUI(); } };
                 xhr.onload = () => {
                     if(xhr.status < 300){
                         const url = JSON.parse(xhr.responseText).content.download_url;
                         item.querySelector('img, video').src = getAssetUrl(url);
-                        uploadQueue.tasks[taskId].status = 'done'; uploadQueue.tasks[taskId].statusText = '✅ 上传成功';
-                        uploadQueue.tasks[taskId].progress = 100; uploadQueue.updateUI();
+                        uploadQueue.tasks[taskId].status = 'done'; uploadQueue.updateUI();
                         saveToCloud(); setTimeout(() => { delete uploadQueue.tasks[taskId]; uploadQueue.updateUI(); }, 2000);
-                    } else {
-                        uploadQueue.tasks[taskId].status = 'error'; uploadQueue.tasks[taskId].statusText = `❌ 失败: ${JSON.parse(xhr.responseText).message}`;
-                        uploadQueue.updateUI();
                     }
                 };
-                xhr.onerror = () => { uploadQueue.tasks[taskId].statusText = "❌ 网络错误"; uploadQueue.updateUI(); };
                 xhr.send(JSON.stringify({message: "Upload", content: b64}));
             }; r.readAsDataURL(file);
         });
     }
 
     function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
-    
+    function addText() { createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px;">Double Click to Edit...</div>`,'500px','500px','250px'); saveHistory(); }
+
     function showLevel(lvl, cat = '') {
         currentLvl=lvl; if(cat)currentCat=cat; 
         document.querySelectorAll('.view-layer').forEach(el=>el.classList.remove('active')); 
@@ -426,11 +366,6 @@
     async function deleteProject(id, title) { if (prompt(`Delete [ ${title} ]? Type name:`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); } }
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
     function handleBack() { if (currentLvl === 4) { if(isAdmin) runAutoBackup("BackBtn"); showLevel(3); } else if (currentLvl === 3) showLevel(2); else showLevel(1); }
-    
-    function addText() { 
-        createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; font-family:'Helvetica Neue';">Double Click to Edit...</div>`,'500px','500px','250px'); 
-        saveHistory(); 
-    }
     
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
