@@ -42,7 +42,7 @@
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
-        /* 文字编辑工具栏 */
+        /* 文本卡片及编辑样式 */
         .text-toolbar { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: white; padding: 5px 10px; border-radius: 6px; display: none; gap: 8px; z-index: 10001; }
         .miro-item.editing .text-toolbar { display: flex; }
         .text-toolbar button { background: transparent; border: none; color: white; cursor: pointer; font-size: 12px; }
@@ -187,45 +187,54 @@
         } catch (e) { alert("获取备份失败"); }
     }
 
-    // 强化版三级页面 Restore：支持序号、完整文件名、跨分类搜索
+    // 强化恢复逻辑：带诊断输出和跨分类搜索
     async function showGlobalRestoreList() {
         if (!isAdmin) return;
+        console.log("--- 诊断模式：启动全局找回 ---");
         try {
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
-            if(!res.ok) throw new Error("获取备份列表失败");
+            if(!res.ok) throw new Error("无法读取备份目录，请检查权限");
             const files = await res.json();
             
-            // 按当前分类过滤以便显示序号建议
+            // 默认显示当前分类下的前15个建议
             const prefix = currentCat[0].toLowerCase();
             const catBackups = files.filter(f => f.name.startsWith(prefix)).sort((a, b) => b.name.localeCompare(a.name));
             
-            let tip = `找回已删除的项目 (最近15个相关项)：\n` + 
+            let tip = `诊断与恢复：请输入序号或【完整文件名】\n` + 
                       catBackups.slice(0,15).map((f, i) => `${i+1}. ${f.name}`).join('\n') +
-                      `\n\n请输入序号 或 完整文件名（支持跨分类）：`;
+                      `\n\n注意：如果跨分类找回，请直接输入完整文件名（含.json）。`;
             
             const choice = prompt(tip);
             if (!choice) return;
 
-            let file;
-            if (!isNaN(choice) && catBackups[parseInt(choice)-1]) {
-                file = catBackups[parseInt(choice)-1];
-            } else {
-                // 如果输入的是文件名，则在所有备份文件中全局查找
-                file = files.find(f => f.name === choice.trim());
-            }
+            let file = (!isNaN(choice) && catBackups[parseInt(choice)-1]) ? catBackups[parseInt(choice)-1] : files.find(f => f.name === choice.trim());
 
             if (file) {
-                const id = file.name.split('_')[0]; // 从文件名提取项目ID
-                if(portfolio_data[id] && !confirm("项目已存在，是否覆盖？")) return;
+                console.log("正在下载:", file.name);
                 const r = await fetch(file.download_url); 
                 const data = await r.json();
+                
+                // 校验数据完整性
+                if(!data.title || !data.layout) {
+                    console.error("非法数据结构:", data);
+                    alert("❌ 恢复失败：该备份文件不包含有效的项目数据。");
+                    return;
+                }
+
+                const id = file.name.split('_')[0]; 
+                console.log("解析出的 ID:", id);
+                
                 portfolio_data[id] = data; 
                 await saveToCloud(); 
-                renderProjGrid(); 
-                alert("项目已成功恢复！");
+                
+                // 强制重绘 UI
+                if(currentLvl === 3) renderProjGrid();
+                if(currentLvl === 2) renderCatGrid();
+                
+                alert(`✅ 成功！项目 "${data.title}" 已恢复。\nID识别为: ${id}\n请在对应的分类下查看。`);
             } else {
-                alert("❌ 未找到匹配的文件，请确保文件名拼写（含.json后缀）完全正确。");
+                alert("❌ 未找到匹配的文件，请检查拼写是否完全一致。");
             }
         } catch (e) { alert("操作失败: " + e.message); }
     }
@@ -264,7 +273,7 @@
         }).join(''); 
     }
 
-    // 修复：文字卡片编辑逻辑及事件绑定
+    // 文字编辑逻辑：修复双击和编辑模式
     function bindTextEvents(d) {
         const edit = d.querySelector('[contenteditable]');
         if(!edit) return;
@@ -284,7 +293,6 @@
             saveHistory(); 
             saveToCloud(); 
         };
-        // 阻止编辑时的点击穿透
         edit.onmousedown = (e) => { if(edit.contentEditable === "true") e.stopPropagation(); };
     }
 
@@ -378,16 +386,11 @@
                     if(xhr.status < 300){
                         const url = JSON.parse(xhr.responseText).content.download_url;
                         item.querySelector('img, video').src = getAssetUrl(url);
-                        uploadQueue.tasks[taskId].status = 'done';
-                        uploadQueue.tasks[taskId].statusText = '✅ 上传成功';
-                        uploadQueue.tasks[taskId].progress = 100;
-                        uploadQueue.updateUI();
-                        saveToCloud();
-                        setTimeout(() => { delete uploadQueue.tasks[taskId]; uploadQueue.updateUI(); }, 2000);
+                        uploadQueue.tasks[taskId].status = 'done'; uploadQueue.tasks[taskId].statusText = '✅ 上传成功';
+                        uploadQueue.tasks[taskId].progress = 100; uploadQueue.updateUI();
+                        saveToCloud(); setTimeout(() => { delete uploadQueue.tasks[taskId]; uploadQueue.updateUI(); }, 2000);
                     } else {
-                        const errMsg = JSON.parse(xhr.responseText).message;
-                        uploadQueue.tasks[taskId].status = 'error';
-                        uploadQueue.tasks[taskId].statusText = `❌ 失败: ${errMsg}`;
+                        uploadQueue.tasks[taskId].status = 'error'; uploadQueue.tasks[taskId].statusText = `❌ 失败: ${JSON.parse(xhr.responseText).message}`;
                         uploadQueue.updateUI();
                     }
                 };
