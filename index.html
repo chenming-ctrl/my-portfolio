@@ -63,6 +63,12 @@
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; padding: 10px; }
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
+
+        /* 文本工具栏样式 */
+        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #eee; border-radius: 6px; display: none; gap: 4px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1002; }
+        .miro-item.selected .text-toolbar { display: flex; }
+        .t-btn { width: 30px; height: 30px; cursor: pointer; border: none; background: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: 0.2s; color: #666; font-weight: bold; }
+        .t-btn:hover { background: #f0f0f0; color: #000; }
     </style>
 </head>
 <body>
@@ -201,61 +207,6 @@
         });
     }
 
-    async function runAutoBackup(reason = "Auto") {
-        if (!isAdmin || !CONFIG.token || !currentProj) return;
-        const container = document.getElementById('global-upload-list');
-        const taskId = "backup_" + Date.now();
-        const currentTitle = document.getElementById('lvl4Title').innerText.trim();
-        const projName = (currentTitle || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
-        
-        container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>BACKUP: ${projName.substring(0,10)}</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status info">INITIALIZING...</div></div>`);
-        const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent'), sText = taskEl.querySelector('.task-status');
-        const updateUI = (p, s) => { fill.style.width = p + '%'; pText.innerText = p + '%'; sText.innerText = s; };
-
-        try {
-            const headers = { 'Authorization': `token ${CONFIG.token}` };
-            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
-            
-            updateUI(20, "SCANNING REPOSITORY...");
-            const res = await fetch(listUrl, { headers });
-            let nextNum = 1;
-            if (res.ok) {
-                const files = await res.json();
-                const pFiles = files.filter(f => f.name.startsWith(`${currentCat[0].toUpperCase()}_${projName}_`)).sort((a,b)=>b.name.localeCompare(a.name));
-                if (pFiles.length >= 5) {
-                    updateUI(40, `CLEANING OLD BACKUPS...`);
-                    for (let f of pFiles.slice(4)) { await fetch(`${listUrl}/${f.name}`, { method: 'DELETE', headers, body: JSON.stringify({ message: "Roll", sha: f.sha }) }); }
-                }
-                if (pFiles.length > 0) nextNum = (parseInt(pFiles[0].name.split('_').pop()) || 0) + 1;
-            }
-
-            updateUI(70, "COMPRESSING DATA...");
-            const now = new Date(), bbb = now.toISOString().split('T')[0].replace(/-/g, ''), ccc = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
-            const fileName = `${currentCat[0].toUpperCase()}_${projName}_${bbb}_${ccc}_${nextNum.toString().padStart(2,'0')}.json`;
-            
-            updateUI(90, "UPLOADING TO CLOUD...");
-            const upRes = await fetch(`${listUrl}/${fileName}`, { method: 'PUT', headers, body: JSON.stringify({ message: `Backup: ${projName}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) }) });
-            
-            if (upRes.ok) { updateUI(100, "SUCCESSFULLY BACKED UP"); sText.className = "task-status success"; setTimeout(() => taskEl.remove(), 4000); }
-            else throw new Error();
-        } catch (e) { updateUI(100, "BACKUP ERROR"); sText.className = "task-status error"; }
-    }
-
-    function autoFitView() {
-        const items = Array.from(vp.querySelectorAll('.miro-item'));
-        if (items.length === 0) { zoom = 1; panX = 0; panY = 0; updateViewport(); return; }
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        items.forEach(el => {
-            const x = parseInt(el.style.left), y = parseInt(el.style.top), w = parseInt(el.style.width), h = el.offsetHeight || 200;
-            minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
-        });
-        const cW = maxX - minX, cH = maxY - minY, pad = 120;
-        zoom = Math.min((window.innerWidth - pad)/cW, (window.innerHeight - pad)/cH, 1.1);
-        zoom = Math.max(zoom, 0.15);
-        panX = (window.innerWidth/2) - (minX + cW/2)*zoom; panY = (window.innerHeight/2) - (minY + cH/2)*zoom;
-        updateViewport();
-    }
-
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
         const fs = Array.from(e.target.files), container = document.getElementById('global-upload-list');
@@ -285,6 +236,24 @@
         });
     }
 
+    // 处理粘贴图片
+    window.addEventListener('paste', async (e) => {
+        if (!isAdmin || currentLvl !== 4) return;
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf("image") !== -1) {
+                const file = items[i].getAsFile();
+                handleUpload({ target: { files: [file] } });
+            }
+        }
+    });
+
+    function setTextAlign(btn, align) {
+        const item = btn.closest('.miro-item');
+        const textEl = item.querySelector('.editable-text');
+        if (textEl) { textEl.style.textAlign = align; saveToCloud(); }
+    }
+
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
@@ -298,6 +267,64 @@
         const rh = d.querySelector('.resize-handle');
         rh.onmousedown = (e) => { e.stopPropagation(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
+    }
+
+    function addText() {
+        const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
+        const content = `<div class="text-toolbar" onclick="event.stopPropagation()"><button class="t-btn" onclick="setTextAlign(this, 'left')">L</button><button class="t-btn" onclick="setTextAlign(this, 'center')">C</button><button class="t-btn" onclick="setTextAlign(this, 'right')">R</button><button class="t-btn" onclick="setTextAlign(this, 'justify')">J</button></div><div class="editable-text" contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; text-align:left;">Double Click to Edit...</div>`;
+        createMiroItem(content, dx+'px', dy+'px', '300px');
+        saveHistory();
+    }
+
+    async function runAutoBackup(reason = "Auto") {
+        if (!isAdmin || !CONFIG.token || !currentProj) return;
+        const container = document.getElementById('global-upload-list');
+        const taskId = "backup_" + Date.now();
+        const currentTitle = document.getElementById('lvl4Title').innerText.trim();
+        const projName = (currentTitle || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+        
+        container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>BACKUP: ${projName.substring(0,10)}</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status info">INITIALIZING...</div></div>`);
+        const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent'), sText = taskEl.querySelector('.task-status');
+        const updateUI = (p, s) => { fill.style.width = p + '%'; pText.innerText = p + '%'; sText.innerText = s; };
+
+        try {
+            const headers = { 'Authorization': `token ${CONFIG.token}` };
+            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
+            updateUI(20, "SCANNING REPOSITORY...");
+            const res = await fetch(listUrl, { headers });
+            let nextNum = 1;
+            if (res.ok) {
+                const files = await res.json();
+                const pFiles = files.filter(f => f.name.startsWith(`${currentCat[0].toUpperCase()}_${projName}_`)).sort((a,b)=>b.name.localeCompare(a.name));
+                if (pFiles.length >= 5) {
+                    updateUI(40, `CLEANING OLD BACKUPS...`);
+                    for (let f of pFiles.slice(4)) { await fetch(`${listUrl}/${f.name}`, { method: 'DELETE', headers, body: JSON.stringify({ message: "Roll", sha: f.sha }) }); }
+                }
+                if (pFiles.length > 0) nextNum = (parseInt(pFiles[0].name.split('_').pop()) || 0) + 1;
+            }
+            updateUI(70, "COMPRESSING DATA...");
+            const now = new Date(), bbb = now.toISOString().split('T')[0].replace(/-/g, ''), ccc = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
+            const fileName = `${currentCat[0].toUpperCase()}_${projName}_${bbb}_${ccc}_${nextNum.toString().padStart(2,'0')}.json`;
+            updateUI(90, "UPLOADING TO CLOUD...");
+            const upRes = await fetch(`${listUrl}/${fileName}`, { method: 'PUT', headers, body: JSON.stringify({ message: `Backup: ${projName}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) }) });
+            if (upRes.ok) { updateUI(100, "SUCCESSFULLY BACKED UP"); sText.className = "task-status success"; setTimeout(() => taskEl.remove(), 4000); }
+            else throw new Error();
+        } catch (e) { updateUI(100, "BACKUP ERROR"); sText.className = "task-status error"; }
+    }
+
+    function autoFitView() {
+        const items = Array.from(vp.querySelectorAll('.miro-item'));
+        if (items.length === 0) { zoom = 1; panX = 0; panY = 0; updateViewport(); return; }
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        items.forEach(el => {
+            const x = parseInt(el.style.left), y = parseInt(el.style.top), w = parseInt(el.style.width), h = el.offsetHeight || 200;
+            minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+        });
+        const cW = maxX - minX, cH = maxY - minY, pad = 120;
+        zoom = Math.min((window.innerWidth - pad)/cW, (window.innerHeight - pad)/cH, 1.1);
+        zoom = Math.max(zoom, 0.15);
+        panX = (window.innerWidth/2) - (minX + cW/2)*zoom; panY = (window.innerHeight/2) - (minY + cH/2)*zoom;
+        updateViewport();
     }
 
     function saveHistory() {
@@ -392,7 +419,6 @@
     }
 
     function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
-    function addText() { createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px;">Double Click to Edit...</div>`,'500px','500px','250px'); saveHistory(); }
     function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?getAssetUrl(portfolio_data[ps[0]].thumbs[0]):''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
     function renderProjGrid() { const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); document.getElementById('projGrid').innerHTML=ps.map(p=>{const t=(p.thumbs||[]).map(url => getAssetUrl(url)); const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : ''; return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;}).join(''); }
     function createNewProject() { const title = prompt("Title:"); if(!title) return; const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = { title, layout: [], thumbs: [] }; saveToCloud().then(() => renderProjGrid()); }
