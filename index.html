@@ -29,36 +29,23 @@
         .stack-container:hover .layer-3 { transform: translate(22px, -22px); opacity: 0.5; }
         .stack-label { margin-top: 35px; font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: #bbb; transition: 0.4s; }
         .stack-container:hover .stack-label { color: #000; letter-spacing: 5px; }
-        
         .delete-proj-btn { position: absolute; top: -10px; right: -10px; width: 24px; height: 24px; background: #ff4335; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; z-index: 100; opacity: 0; transition: 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .stack-container:hover .delete-proj-btn { opacity: 1; }
-
         .view-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; opacity: 0; visibility: hidden; transition: 0.8s cubic-bezier(0.165, 0.84, 0.44, 1); display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .view-layer.active { opacity: 1; visibility: visible; }
         #lvl4 { background: #fbfbfb; z-index: 6000; display: none; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
-        
-        /* MIRO ITEM 样式增强 */
-        .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid transparent; user-select: none; min-width: 50px; min-height: 50px; }
-        .miro-item.selected { border: 1px solid #4285F4; z-index: 1000 !important; }
+        .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
+        .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-        
-        /* 四角缩放手柄 */
-        .resizer { position: absolute; width: 10px; height: 10px; background: #fff; border: 2px solid #4285F4; border-radius: 50%; z-index: 1001; display: none; }
-        .miro-item.selected .resizer { display: block; }
-        .resizer.nw { top: -6px; left: -6px; cursor: nwse-resize; }
-        .resizer.ne { top: -6px; right: -6px; cursor: nesw-resize; }
-        .resizer.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
-        .resizer.se { bottom: -6px; right: -6px; cursor: nwse-resize; }
-        
-        /* 编辑状态文字框 */
-        [contenteditable="true"] { cursor: text; outline: none; background: rgba(66, 133, 244, 0.03); }
-
-        .guide-line { position: absolute; background: rgba(66, 133, 244, 0.4); pointer-events: none; z-index: 5000; display: none; }
+        /* 优化缩放手柄 */
+        .resize-handle { position: absolute; width: 12px; height: 12px; background: #fff; border: 2px solid #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 2px; }
+        .miro-item.selected .resize-handle { display: block; }
+        /* 辅助线样式 */
+        .guide-line { position: absolute; background: rgba(66, 133, 244, 0.6); pointer-events: none; z-index: 5000; display: none; }
         #guide-x { width: 1px; height: 20000px; top: -10000px; border-left: 1px dashed #4285F4; }
         #guide-y { height: 1px; width: 20000px; left: -10000px; border-top: 1px dashed #4285F4; }
-
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
@@ -80,6 +67,7 @@
 <nav id="mainNav"><div class="nav-logo" onclick="showLevel(1)">CHENMING</div><div id="dynamicNav" class="nav-links"></div></nav>
 <div id="backBtnContainer" class="back-btn-container">
     <div id="addProjBtn" class="back-btn" style="display:none; color: #34A853; margin-bottom:10px;" onclick="createNewProject()">+ NEW PROJECT</div>
+    <div id="restoreProjBtn" class="back-btn" style="display:none; color: #FBBC05; margin-bottom:10px;" onclick="showGlobalRestoreList()">↺ RESTORE PROJECT</div>
     <div class="back-btn" onclick="handleBack()">← BACK</div>
 </div>
 
@@ -101,6 +89,8 @@
         <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ MEDIA</button>
         <button class="ui-btn" onclick="addLink()">+ LINK</button>
         <button class="ui-btn" onclick="addText()">+ TEXT</button>
+        <button class="ui-btn" id="manualSaveBtn" style="background: #000; color: #fff; border: none;" onclick="manualSaveWithBackup()">SAVE & BACKUP</button>
+        <button class="ui-btn" id="restoreBtn" style="border-color: #FBBC05; color: #FBBC05;" onclick="showRestoreList()">RESTORE</button>
     </div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
 </div>
@@ -108,107 +98,203 @@
 
 <script>
     const CONFIG = {
-        owner: 'chenming-ctrl', repo: 'my-portfolio-data', path: 'portfolio_data.json',
+        owner: 'chenming-ctrl', 
+        repo: 'my-portfolio-data', 
+        path: 'portfolio_data.json',
+        backupDir: 'backups',
         get token() { return (localStorage.getItem('gh_token') || '').trim(); }
     };
 
+    function getAssetUrl(rawUrl) {
+        if (!rawUrl || !rawUrl.includes('github.com')) return rawUrl;
+        return rawUrl.replace('raw.githubusercontent.com', 'cdn.jsdelivr.net/gh').replace('github.com', 'cdn.jsdelivr.net/gh').replace('/blob/main/', '@main/').replace('/main/', '@main/');
+    }
+
     let portfolio_data = {}, isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
-    let dragTarget = null, startX, startY, startW, startH, resizeDir = '';
+    let dragTarget = null, startX, startY, startW;
     let historyStack = [];
-    let isSaving = false, savePending = false;
+    let isSaving = false, savePending = false; 
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
+    const SNAP_THRESHOLD = 10;
+    const gX = document.getElementById('guide-x'), gY = document.getElementById('guide-y');
 
     async function saveToCloud() { 
         if(!isAdmin) return; 
         if (isSaving) { savePending = true; return; }
         isSaving = true;
-
         try {
             if(currentLvl === 4 && currentProj) {
                 const items = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({
                     html: el.querySelector('.crop-container').innerHTML, 
                     x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height
                 })); 
-                portfolio_data[currentProj.id].layout = items; 
-                portfolio_data[currentProj.id].title = document.getElementById('lvl4Title').innerText; 
-                portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
+                if(portfolio_data[currentProj.id]) {
+                    portfolio_data[currentProj.id].layout = items; 
+                    portfolio_data[currentProj.id].title = document.getElementById('lvl4Title').innerText; 
+                    portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
+                }
             }
             const url = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`; 
-            const getSha = await fetch(url + "?t=" + Date.now(), { headers: {'Authorization': `token ${CONFIG.token}`} }); 
+            const getSha = await fetch(`${url}?t=${Date.now()}`, { headers: {'Authorization': `token ${CONFIG.token}`} }); 
             const sha = (await getSha.json()).sha; 
             await fetch(url, {
                 method: 'PUT', headers: {'Authorization': `token ${CONFIG.token}`}, 
-                body: JSON.stringify({
-                    message: "Sync Portfolio", 
-                    content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2)))), 
-                    sha
-                })
+                body: JSON.stringify({ message: "Sync Data", content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2)))), sha })
             }); 
-        } catch (e) { console.error("Cloud Save Error:", e); }
-
+        } catch (e) { console.error("Sync Error:", e); }
         isSaving = false;
         if (savePending) { savePending = false; saveToCloud(); }
     }
 
-    function saveHistory() {
-        const state = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({
-            html: el.querySelector('.crop-container').innerHTML,
-            x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height
-        }));
-        historyStack.push(JSON.stringify(state));
-        if(historyStack.length > 30) historyStack.shift();
-    }
-    
-    function undo() {
-        if(historyStack.length <= 1) return;
-        historyStack.pop();
-        const prevState = JSON.parse(historyStack[historyStack.length - 1]);
-        Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
-        prevState.forEach(it => createMiroItem(it.html, it.x, it.y, it.w, it.h));
+    async function runAutoBackup(reason = "Auto") {
+        if (!isAdmin || !currentProj) return;
+        try {
+            const now = new Date();
+            const timeStr = now.getFullYear() + (now.getMonth()+1).toString().padStart(2,'0') + now.getDate().toString().padStart(2,'0') + '_' + now.getHours().toString().padStart(2,'0') + now.getMinutes().toString().padStart(2,'0');
+            const safeTitle = currentProj.title.trim().replace(/\s+/g, '_').replace(/[\\/:*?"<>|]/g, '');
+            const baseName = `${safeTitle}_${timeStr}`;
+            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
+            const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
+            let nextNum = 1;
+            if (res.ok) {
+                const files = await res.json();
+                const existing = files.filter(f => f.name.includes(baseName));
+                nextNum = existing.length + 1;
+            }
+            const fileName = `${baseName}_${nextNum.toString().padStart(2, '0')}.json`;
+            await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}/${fileName}`, {
+                method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` },
+                body: JSON.stringify({ message: `Backup: ${currentProj.title}`, content: btoa(unescape(encodeURIComponent(JSON.stringify({ originalId: currentProj.id, ...portfolio_data[currentProj.id] }, null, 2)))) })
+            });
+        } catch (e) { console.error("Backup Failed:", e); }
     }
 
-    window.addEventListener('keydown', e => {
-        if(currentLvl !== 4) return;
-        if((e.key === "Delete" || e.key === "Backspace") && !isEditingText()) {
-            const sel = document.querySelector('.miro-item.selected');
-            if(sel) { sel.remove(); saveHistory(); saveToCloud(); }
+    async function performRestore(fileInfo, isGlobal = false) {
+        try {
+            const r = await fetch(fileInfo.download_url);
+            const backupContent = await r.json();
+            let id = backupContent.originalId || (isGlobal ? fileInfo.name.split('_')[0] : currentProj?.id);
+            if (!id) id = currentCat[0].toLowerCase() + Date.now();
+            portfolio_data[id] = { title: backupContent.title, layout: backupContent.layout, thumbs: backupContent.thumbs || [] };
+            await saveToCloud();
+            if (isGlobal) renderProjGrid(); else { currentProj = { id, ...portfolio_data[id] }; showLevel(4); }
+        } catch (e) { alert("恢复失败"); }
+    }
+
+    async function showRestoreList() {
+        if (!isAdmin || !currentProj) return;
+        try {
+            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
+            const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
+            const files = await res.json();
+            const safeTitle = currentProj.title.trim().replace(/\s+/g, '_').replace(/[\\/:*?"<>|]/g, '');
+            const pbs = files.filter(f => f.name.includes(currentProj.id) || f.name.startsWith(safeTitle)).sort((a, b) => b.name.localeCompare(a.name));
+            if (pbs.length === 0) return alert("无备份");
+            const choice = prompt("选择版本恢复：\n" + pbs.map((f, i) => `${i+1}. ${f.name}`).join('\n'));
+            if (choice && pbs[choice-1]) await performRestore(pbs[choice-1], false);
+        } catch (e) { alert("获取失败"); }
+    }
+
+    async function showGlobalRestoreList() {
+        if (!isAdmin) return;
+        try {
+            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
+            const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
+            const files = await res.json();
+            let allBackups = files.sort((a, b) => b.name.localeCompare(a.name)).slice(0, 50);
+            const groups = {};
+            allBackups.forEach(f => {
+                let pName = f.name.split('_')[0];
+                if (!groups[pName]) groups[pName] = [];
+                groups[pName].push(f);
+            });
+            let msg = "找回项目：\n"; let flatList = []; let counter = 1;
+            for (let name in groups) {
+                msg += `\n📂 ${name}\n`;
+                groups[name].forEach(f => { msg += `   ${counter}. ${f.name}\n`; flatList.push(f); counter++; });
+            }
+            const choice = prompt(msg);
+            if (choice && flatList[choice-1]) await performRestore(flatList[choice-1], true);
+        } catch (e) { alert("获取失败"); }
+    }
+
+    async function manualSaveWithBackup() {
+        const btn = document.getElementById('manualSaveBtn'); btn.innerText = "SAVING...";
+        await saveToCloud(); await runAutoBackup("Manual");
+        btn.innerText = "SUCCESS"; setTimeout(() => btn.innerText = "SAVE & BACKUP", 2000);
+    }
+
+    async function initSystem() {
+        const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
+        if (isAdmin && CONFIG.token) {
+            try {
+                const res = await fetch(`${apiUrl}?t=${Date.now()}`, { headers: {'Authorization': `token ${CONFIG.token}`} });
+                if (res.ok) portfolio_data = JSON.parse(decodeURIComponent(escape(atob((await res.json()).content))));
+            } catch(e) {}
         }
-        if(e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); saveToCloud(); }
-    });
-    function isEditingText() { return document.activeElement && document.activeElement.contentEditable === "true"; }
-
-    // --- 吸附系统增强 ---
-    const SNAP_SENSITIVITY = 10;
-    const SNAP_GAPS = [10, 50, 100];
-    function getEnhancedSnap(target, nx, ny) {
-        let sx = nx, sy = ny;
-        let showLineX = false, showLineY = false;
-        const tw = target.offsetWidth, th = target.offsetHeight;
-
-        const referenceX = [...SNAP_GAPS];
-        const referenceY = [...SNAP_GAPS];
-
-        const others = Array.from(vp.children).filter(i => i !== target && i.classList.contains('miro-item'));
-        others.forEach(i => {
-            const ix = parseInt(i.style.left), iy = parseInt(i.style.top), iw = i.offsetWidth, ih = i.offsetHeight;
-            referenceX.push(ix, ix + iw);
-            referenceY.push(iy, iy + ih);
-        });
-
-        referenceX.forEach(ref => {
-            if(Math.abs(nx - ref) < SNAP_SENSITIVITY) { sx = ref; showLineX = true; }
-            if(Math.abs((nx + tw) - ref) < SNAP_SENSITIVITY) { sx = ref - tw; showLineX = true; }
-        });
-        referenceY.forEach(ref => {
-            if(Math.abs(ny - ref) < SNAP_SENSITIVITY) { sy = ref; showLineY = true; }
-            if(Math.abs((ny + th) - ref) < SNAP_SENSITIVITY) { sy = ref - th; showLineY = true; }
-        });
-
-        return { x: sx, y: sy, lx: showLineX, ly: showLineY };
+        document.getElementById('loading-bar').style.width = "100%";
+        setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; }, 500);
+        if(currentLvl === 2) renderCatGrid();
     }
 
-    // --- 粒子背景背景逻辑 (保持原样) ---
+    function renderCatGrid() { 
+        const cats=['Architecture','Computational','Interest','Photo','Ongoing']; 
+        document.getElementById('catGrid').innerHTML=cats.map(cat=>{
+            const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); 
+            const t=(ps.length&&portfolio_data[ps[0]].thumbs)?getAssetUrl(portfolio_data[ps[0]].thumbs[0]):''; 
+            return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;
+        }).join(''); 
+    }
+
+    function renderProjGrid() { 
+        const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); 
+        document.getElementById('projGrid').innerHTML=ps.map(p=>{
+            const t=(p.thumbs||[]).map(url => getAssetUrl(url)); 
+            const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : '';
+            return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;
+        }).join(''); 
+    }
+
+    function createMiroItem(content, x, y, w = "300px", h = "auto") {
+        const d = document.createElement('div');
+        d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
+        const speedContent = content.replace(/src="([^"]+)"/g, (match, p1) => `src="${getAssetUrl(p1)}"`);
+        d.innerHTML = `<div class="crop-container">${speedContent}</div><div class="resize-handle"></div>`;
+        
+        const edit = d.querySelector('[contenteditable]');
+        d.onmousedown = (e) => {
+            if (e.target.contentEditable === "true" || !isAdmin || e.button !== 0) return;
+            e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
+            d.classList.add('selected'); vp.appendChild(d); isDragging = true; dragTarget = d;
+            startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
+        };
+        
+        if(edit) { 
+            edit.contentEditable = "false";
+            // 修复文字编辑：双击进入编辑模式
+            d.ondblclick = (e) => { 
+                if(!isAdmin) return; 
+                e.stopPropagation(); 
+                edit.contentEditable = "true"; 
+                edit.focus(); 
+                isDragging = false; 
+                dragTarget = null; 
+            }; 
+            edit.onmousedown = (e) => { if(edit.contentEditable === "true") e.stopPropagation(); };
+            edit.onblur = () => { edit.contentEditable = "false"; saveHistory(); saveToCloud(); }; 
+        }
+
+        const rh = d.querySelector('.resize-handle');
+        rh.onmousedown = (e) => { e.stopPropagation(); e.preventDefault(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
+        vp.appendChild(d); return d;
+    }
+
+    function saveHistory() {
+        const state = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({ html: el.querySelector('.crop-container').innerHTML, x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height }));
+        historyStack.push(JSON.stringify(state)); if(historyStack.length > 30) historyStack.shift();
+    }
+
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', e => { m.x = e.clientX; m.y = e.clientY; });
@@ -223,227 +309,70 @@
         }
     }
 
-    // --- MIRO ITEM 创建与交互重写 ---
-    function createMiroItem(content, x, y, w = "300px", h = "auto") {
-        const d = document.createElement('div');
-        d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
-        d.innerHTML = `
-            <div class="crop-container">${content}</div>
-            <div class="resizer nw" data-dir="nw"></div>
-            <div class="resizer ne" data-dir="ne"></div>
-            <div class="resizer sw" data-dir="sw"></div>
-            <div class="resizer se" data-dir="se"></div>
-        `;
-        
-        const edit = d.querySelector('[contenteditable]');
-        
-        d.onmousedown = (e) => {
-            if (e.target.contentEditable === "true") return;
-            if(!isAdmin || e.button !== 0) return;
-            
-            e.stopPropagation();
-            document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-            d.classList.add('selected'); vp.appendChild(d);
-            
-            if (e.target.classList.contains('resizer')) {
-                isResizing = true;
-                resizeDir = e.target.dataset.dir;
-                startX = e.clientX; startY = e.clientY;
-                startW = d.offsetWidth; startH = d.offsetHeight;
-                dragTarget = d;
-            } else {
-                isDragging = true; dragTarget = d;
-                startX = (e.clientX/zoom) - parseInt(d.style.left);
-                startY = (e.clientY/zoom) - parseInt(d.style.top);
-            }
-        };
-
-        if(edit) { 
-            edit.contentEditable = "false";
-            d.ondblclick = (e) => { 
-                if(!isAdmin) return;
-                e.stopPropagation(); 
-                edit.contentEditable = "true";
-                edit.focus();
-                document.execCommand('selectAll', false, null);
-                isDragging = false; dragTarget = null;
-            }; 
-            edit.onblur = () => { edit.contentEditable = "false"; saveHistory(); saveToCloud(); }; 
-            edit.onkeydown = (e) => { e.stopPropagation(); };
-        }
-
-        vp.appendChild(d); return d;
-    }
-
+    // 核心：拖拽、吸附对齐与缩放逻辑
     window.onmousemove = (e) => {
-        if(isPanning) { 
-            panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); 
-        } 
+        if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
         else if(isDragging && dragTarget && !isResizing) {
-            let rx = (e.clientX/zoom) - startX, ry = (e.clientY/zoom) - startY;
-            const sn = getEnhancedSnap(dragTarget, rx, ry);
-            dragTarget.style.left = sn.x + "px"; dragTarget.style.top = sn.y + "px";
-            
-            const gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
-            gx.style.display = sn.lx ? 'block' : 'none'; gy.style.display = sn.ly ? 'block' : 'none';
-            gx.style.left = (sn.lx ? dragTarget.style.left : "-100px");
-            gy.style.top = (sn.ly ? dragTarget.style.top : "-100px");
-        } 
-        else if(isResizing && dragTarget) {
-            const dx = (e.clientX - startX) / zoom;
-            const dy = (e.clientY - startY) / zoom;
-            if (resizeDir.includes('e')) dragTarget.style.width = Math.max(50, startW + dx) + "px";
-            if (resizeDir.includes('s')) dragTarget.style.height = Math.max(50, startH + dy) + "px";
-            if (resizeDir.includes('w')) {
-                const newW = Math.max(50, startW - dx);
-                if(newW > 50) {
-                    dragTarget.style.width = newW + "px";
-                    dragTarget.style.left = (parseInt(dragTarget.style.left) + (startW - newW)) + "px";
-                }
-            }
-            if (resizeDir.includes('n')) {
-                const newH = Math.max(50, startH - dy);
-                if(newH > 50) {
-                    dragTarget.style.height = newH + "px";
-                    dragTarget.style.top = (parseInt(dragTarget.style.top) + (startH - newH)) + "px";
-                }
-            }
+            let nx = (e.clientX/zoom) - startX;
+            let ny = (e.clientY/zoom) - startY;
+
+            // --- 增强：10/50/100px 边界及对齐吸附 ---
+            const snapPoints = [0, 10, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
+            let snappedX = false, snappedY = false;
+
+            snapPoints.forEach(p => {
+                if (Math.abs(nx - p) < SNAP_THRESHOLD) { nx = p; snappedX = true; }
+                if (Math.abs(ny - p) < SNAP_THRESHOLD) { ny = p; snappedY = true; }
+            });
+
+            // 辅助线显示逻辑
+            gX.style.display = snappedX ? 'block' : 'none';
+            if(snappedX) gX.style.left = nx + 'px';
+            gY.style.display = snappedY ? 'block' : 'none';
+            if(snappedY) gY.style.top = ny + 'px';
+
+            dragTarget.style.left = nx + "px";
+            dragTarget.style.top = ny + "px";
+        } else if(isResizing && dragTarget) {
+            // --- 增强：缩放对齐 ---
+            let nw = Math.max(50, startW + (e.clientX - startX)/zoom);
+            if (Math.abs(nw % 50) < SNAP_THRESHOLD) nw = Math.round(nw/50)*50;
+            dragTarget.style.width = nw + "px";
+            // 图片/视频自动维持比例
+            if(dragTarget.querySelector('img, video')) dragTarget.style.height = "auto";
         }
     };
-
+    
     window.onmouseup = () => { 
         if(isDragging || isResizing) { saveHistory(); saveToCloud(); } 
         isDragging = isResizing = isPanning = false; 
-        document.getElementById('guide-x').style.display = 'none';
-        document.getElementById('guide-y').style.display = 'none';
+        gX.style.display = gY.style.display = 'none'; 
     };
 
     bd.onmousedown = (e) => { if(currentLvl === 4 && (e.button === 1 || e.target === bd || e.target === vp)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); } };
-    bd.addEventListener('wheel', e => {
-        if(currentLvl === 4) {
-            e.preventDefault();
-            const f = Math.pow(1.1, -e.deltaY/120);
-            const nz = Math.min(Math.max(zoom * f, 0.05), 5);
-            panX = e.clientX - (e.clientX - panX) * (nz/zoom);
-            panY = e.clientY - (e.clientY - panY) * (nz/zoom);
-            zoom = nz; updateViewport();
-        }
-    }, {passive:false});
-
+    bd.addEventListener('wheel', e => { if(currentLvl === 4) { e.preventDefault(); const f = Math.pow(1.1, -e.deltaY/120); const nz = Math.min(Math.max(zoom * f, 0.05), 5); panX = e.clientX - (e.clientX - panX) * (nz/zoom); panY = e.clientY - (e.clientY - panY) * (nz/zoom); zoom = nz; updateViewport(); } }, {passive:false});
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
 
-    // --- 上传与系统逻辑 (保持原样) ---
-    const uploadQueue = { 
-        tasks: {}, 
-        updateUI() { 
-            const list = document.getElementById('global-upload-list'); 
-            list.innerHTML = Object.values(this.tasks).map(t => `
-                <div style="background:rgba(255,255,255,0.9); padding:12px; border-radius:10px; margin-bottom:10px; box-shadow:0 8px 20px rgba(0,0,0,0.1); border-left:4px solid ${t.status==='done'?'#34A853':'#4285F4'}; backdrop-filter:blur(5px);">
-                    <div style="font-size:10px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${t.fileName}</div>
-                    <div style="font-size:9px; color:#888; margin:4px 0;">${t.statusText}</div>
-                    <div style="height:3px; background:#eee; width:100%; border-radius:2px; overflow:hidden;">
-                        <div style="width:${t.progress}%; height:100%; background:${t.status==='compressing'?'#FBBC05':'#4285F4'}; transition:0.3s;"></div>
-                    </div>
-                </div>`).join(''); 
-        } 
-    };
-
-    async function compress(file) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (e) => {
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let { width: w, height: h } = img;
-                    const maxDimension = 2500;
-                    if (w > maxDimension || h > maxDimension) {
-                        if (w > h) { h = (maxDimension / w) * h; w = maxDimension; } else { w = (maxDimension / h) * w; h = maxDimension; }
-                    }
-                    canvas.width = w; canvas.height = h;
-                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
-                    let dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-                    resolve(dataUrl.split(',')[1]);
-                };
-            };
-        });
-    }
+    const uploadQueue = { tasks: {}, updateUI() { const list = document.getElementById('global-upload-list'); list.innerHTML = Object.values(this.tasks).map(t => `<div style="background:rgba(255,255,255,0.9); padding:12px; border-radius:10px; margin-bottom:10px; box-shadow:0 8px 20px rgba(0,0,0,0.1); border-left:4px solid ${t.status==='done'?'#34A853':'#4285F4'};"><div style="font-size:10px;">${t.fileName}</div><div style="height:3px; background:#eee; width:100%;"><div style="width:${t.progress}%; height:100%; background:#4285F4;"></div></div></div>`).join(''); } };
 
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
-        const fs = Array.from(e.target.files);
-        const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
+        const fs = Array.from(e.target.files); const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         fs.forEach(async (file, idx) => {
-            const taskId = "task_" + Date.now() + "_" + idx;
-            uploadQueue.tasks[taskId] = { fileName: file.name, progress: 10, status: 'compressing', statusText: '智能处理中...' };
-            uploadQueue.updateUI();
-            const rx = (dx+(idx*30))+'px', ry = (dy+(idx*30))+'px', isImg = file.type.includes('image');
-            const r = new FileReader();
-            r.onload = async (re) => {
-                const item = createMiroItem(isImg ? `<img src="${re.target.result}">` : `<video src="${re.target.result}" autoplay loop muted></video>`, rx, ry);
-                let b64 = isImg ? await compress(file) : await toBase64(file);
-                uploadQueue.tasks[taskId].status = 'uploading';
-                uploadQueue.updateUI();
-                const xhr = new XMLHttpRequest();
-                xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
+            const taskId = "t_" + Date.now() + "_" + idx; uploadQueue.tasks[taskId] = { fileName: file.name, progress: 10, status: 'uploading' }; uploadQueue.updateUI();
+            const r = new FileReader(); r.onload = async (re) => {
+                const item = createMiroItem(file.type.includes('image') ? `<img src="${re.target.result}">` : `<video src="${re.target.result}" autoplay loop muted></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
+                const b64 = re.target.result.split(',')[1];
+                const xhr = new XMLHttpRequest(); xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
                 xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-                xhr.upload.onprogress = (ev) => {
-                    uploadQueue.tasks[taskId].progress = 30 + Math.round((ev.loaded/ev.total)*65);
-                    uploadQueue.updateUI();
-                };
-                xhr.onload = async () => {
-                    if(xhr.status === 201 || xhr.status === 200){
-                        const remoteUrl = JSON.parse(xhr.responseText).content.download_url;
-                        item.querySelector('img, video').src = remoteUrl;
-                        uploadQueue.tasks[taskId].status = 'done';
-                        uploadQueue.tasks[taskId].progress = 100;
-                        uploadQueue.updateUI();
-                        saveToCloud();
-                        setTimeout(() => { delete uploadQueue.tasks[taskId]; uploadQueue.updateUI(); }, 2000);
-                    }
-                };
-                xhr.send(JSON.stringify({message: "Media Upload", content: b64}));
-            };
-            r.readAsDataURL(file);
+                xhr.upload.onprogress = (ev) => { uploadQueue.tasks[taskId].progress = 30 + Math.round((ev.loaded/ev.total)*65); uploadQueue.updateUI(); };
+                xhr.onload = () => { if(xhr.status<300){ const url = JSON.parse(xhr.responseText).content.download_url; item.querySelector('img, video').src = getAssetUrl(url); uploadQueue.tasks[taskId].status = 'done'; uploadQueue.updateUI(); saveToCloud(); setTimeout(()=> {delete uploadQueue.tasks[taskId]; uploadQueue.updateUI();}, 2000); } };
+                xhr.send(JSON.stringify({message: "Upload", content: b64}));
+            }; r.readAsDataURL(file);
         });
     }
 
-    async function initSystem() {
-        try {
-            const res = await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`, isAdmin && CONFIG.token ? {headers:{'Authorization':`token ${CONFIG.token}`}}: {});
-            if (res.ok) { const json = await res.json(); portfolio_data = JSON.parse(decodeURIComponent(escape(atob(json.content)))); }
-        } catch (e) {}
-        document.getElementById('loading-bar').style.width = "100%";
-        setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; }, 500);
-        if(currentLvl === 2) renderCatGrid();
-    }
-
-    function toBase64(file) { return new Promise(res=>{const fr=new FileReader(); fr.onload=()=>res(fr.result.split(',')[1]); fr.readAsDataURL(file);}); }
-    function addLink() {
-        const url = prompt("Link:"); if (!url) return;
-        let embedUrl = url;
-        if (url.includes('bilibili.com')) {
-            const bvid = url.match(/BV[a-zA-Z0-9]+/)?.[0];
-            if (bvid) embedUrl = `//player.bilibili.com/player.html?bvid=${bvid}&page=1&high_quality=1`;
-        } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
-            const yid = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/)?.[1];
-            if (yid) embedUrl = `https://www.youtube.com/embed/${yid}`;
-        }
-        createMiroItem(`<iframe src="${embedUrl}" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px');
-        saveHistory(); saveToCloud();
-    }
-
-    function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?portfolio_data[ps[0]].thumbs[0]:''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
-    function renderProjGrid() { 
-        const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); 
-        document.getElementById('projGrid').innerHTML=ps.map(p=>{
-            const t=p.thumbs||[]; 
-            const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : '';
-            return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;
-        }).join(''); 
-    }
+    function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; border:none; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
     
     function showLevel(lvl, cat = '') {
         currentLvl=lvl; if(cat)currentCat=cat; 
@@ -453,36 +382,34 @@
         if(lvl===4){
             Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
             (portfolio_data[currentProj.id].layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); 
-            setTimeout(() => { updateViewport(); saveHistory(); }, 50);
-            document.getElementById('lvl4Title').innerText=portfolio_data[currentProj.id].title;
-            document.getElementById('lvl4CatTag').innerText=currentCat;
+            document.getElementById('lvl4Title').innerText=portfolio_data[currentProj.id].title; document.getElementById('lvl4CatTag').innerText=currentCat;
             document.getElementById('adminControls').style.display = isAdmin ? 'flex' : 'none';
         }
         document.getElementById('lvl'+lvl).classList.add('active'); 
         document.documentElement.style.setProperty('--bg-blur', [0,15,30,0][lvl-1]+'px'); 
         document.getElementById('mainNav').classList.toggle('visible', lvl>1); 
         document.getElementById('backBtnContainer').classList.toggle('show', lvl>1); 
-        document.getElementById('addProjBtn').style.display=(lvl===3&&isAdmin)?'block':'none'; 
+        document.getElementById('addProjBtn').style.display=(lvl===3 && isAdmin)?'block':'none';
+        document.getElementById('restoreProjBtn').style.display=(lvl===3 && isAdmin)?'block':'none';
     }
 
-    function createNewProject() {
-        const title = prompt("New Project Title:"); if(!title) return;
-        const id = currentCat[0].toLowerCase() + Date.now();
-        portfolio_data[id] = { title, layout: [], thumbs: [] };
-        saveToCloud().then(() => renderProjGrid());
-    }
-
-    async function deleteProject(id, title) {
-        if (prompt(`确定删除 [ ${title} ]？输入全名确认：`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); }
+    function createNewProject() { const title = prompt("Title:"); if(!title) return; const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = { title, layout: [], thumbs: [] }; saveToCloud().then(() => renderProjGrid()); }
+    
+    async function deleteProject(id, title) { 
+        if (prompt(`确定要永久删除 [ ${title} ] 吗？请输入项目名称确认:`) === title) { 
+            delete portfolio_data[id]; 
+            await saveToCloud(); renderProjGrid(); 
+        } 
     }
 
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
-    function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
+    function handleBack() { if (currentLvl === 4) { if(isAdmin) runAutoBackup("BackBtn"); showLevel(3); } else if (currentLvl === 3) showLevel(2); else showLevel(1); }
     function addText() { createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300;">New Text</div>`,'500px','500px','250px'); saveHistory(); }
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
-    function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
-    window.onload = () => { initParticles(); animate(); initSystem(); };
+    function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
+    
+    window.onload = () => { if(CONFIG.token) { isAdmin = true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; } initParticles(); animate(); initSystem(); };
     window.onresize = () => { cvs.width=window.innerWidth; cvs.height=window.innerHeight; };
     document.getElementById('dynamicNav').innerHTML=['Architecture','Computational','Interest','Photo','Ongoing'].map(c=>`<a onclick="showLevel(3, '${c}')">${c}</a>`).join('');
 </script>
