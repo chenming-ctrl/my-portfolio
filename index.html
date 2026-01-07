@@ -39,13 +39,20 @@
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-        /* 优化缩放手柄 */
+        
+        /* 交互增强样式 */
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #fff; border: 2px solid #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 2px; }
         .miro-item.selected .resize-handle { display: block; }
-        /* 辅助线样式 */
-        .guide-line { position: absolute; background: rgba(66, 133, 244, 0.6); pointer-events: none; z-index: 5000; display: none; }
+        .guide-line { position: absolute; background: rgba(66, 133, 244, 0.4); pointer-events: none; z-index: 5000; display: none; }
         #guide-x { width: 1px; height: 20000px; top: -10000px; border-left: 1px dashed #4285F4; }
         #guide-y { height: 1px; width: 20000px; left: -10000px; border-top: 1px dashed #4285F4; }
+        
+        /* 文本卡片重构样式 */
+        .text-toolbar { position: absolute; top: -45px; left: 0; background: #fff; border: 1px solid #eee; padding: 5px; display: none; gap: 5px; z-index: 1002; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border-radius: 4px; }
+        .text-toolbar button, .text-toolbar select { padding: 3px 8px; font-size: 11px; cursor: pointer; background: #fff; border: 1px solid #ddd; border-radius: 2px; }
+        .miro-item.editing .text-toolbar { display: flex; }
+        .editable-content { padding: 20px; min-height: 50px; outline: none; }
+
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
@@ -105,6 +112,9 @@
         get token() { return (localStorage.getItem('gh_token') || '').trim(); }
     };
 
+    const ARCHI_FONTS = ["'Helvetica Neue'", "'Arial'", "'Georgia'", "'Courier New'", "'Times New Roman'"];
+    const SNAP_THRESHOLD = 10;
+
     function getAssetUrl(rawUrl) {
         if (!rawUrl || !rawUrl.includes('github.com')) return rawUrl;
         return rawUrl.replace('raw.githubusercontent.com', 'cdn.jsdelivr.net/gh').replace('github.com', 'cdn.jsdelivr.net/gh').replace('/blob/main/', '@main/').replace('/main/', '@main/');
@@ -116,7 +126,6 @@
     let historyStack = [];
     let isSaving = false, savePending = false; 
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
-    const SNAP_THRESHOLD = 10;
     const gX = document.getElementById('guide-x'), gY = document.getElementById('guide-y');
 
     async function saveToCloud() { 
@@ -129,11 +138,9 @@
                     html: el.querySelector('.crop-container').innerHTML, 
                     x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height
                 })); 
-                if(portfolio_data[currentProj.id]) {
-                    portfolio_data[currentProj.id].layout = items; 
-                    portfolio_data[currentProj.id].title = document.getElementById('lvl4Title').innerText; 
-                    portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
-                }
+                portfolio_data[currentProj.id].layout = items; 
+                portfolio_data[currentProj.id].title = document.getElementById('lvl4Title').innerText; 
+                portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
             }
             const url = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`; 
             const getSha = await fetch(`${url}?t=${Date.now()}`, { headers: {'Authorization': `token ${CONFIG.token}`} }); 
@@ -150,36 +157,21 @@
     async function runAutoBackup(reason = "Auto") {
         if (!isAdmin || !currentProj) return;
         try {
-            const now = new Date();
-            const timeStr = now.getFullYear() + (now.getMonth()+1).toString().padStart(2,'0') + now.getDate().toString().padStart(2,'0') + '_' + now.getHours().toString().padStart(2,'0') + now.getMinutes().toString().padStart(2,'0');
-            const safeTitle = currentProj.title.trim().replace(/\s+/g, '_').replace(/[\\/:*?"<>|]/g, '');
-            const baseName = `${safeTitle}_${timeStr}`;
+            const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const projectID = currentProj.id;
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
-            let nextNum = 1;
+            let backups = [];
             if (res.ok) {
                 const files = await res.json();
-                const existing = files.filter(f => f.name.includes(baseName));
-                nextNum = existing.length + 1;
+                backups = files.filter(f => f.name.startsWith(projectID)).sort((a, b) => a.name.localeCompare(b.name));
             }
-            const fileName = `${baseName}_${nextNum.toString().padStart(2, '0')}.json`;
+            const fileName = `${projectID}_${dateStr}_${(backups.length + 1).toString().padStart(2, '0')}.json`;
             await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}/${fileName}`, {
                 method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` },
-                body: JSON.stringify({ message: `Backup: ${currentProj.title}`, content: btoa(unescape(encodeURIComponent(JSON.stringify({ originalId: currentProj.id, ...portfolio_data[currentProj.id] }, null, 2)))) })
+                body: JSON.stringify({ message: `Backup: ${currentProj.title}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) })
             });
         } catch (e) { console.error("Backup Failed:", e); }
-    }
-
-    async function performRestore(fileInfo, isGlobal = false) {
-        try {
-            const r = await fetch(fileInfo.download_url);
-            const backupContent = await r.json();
-            let id = backupContent.originalId || (isGlobal ? fileInfo.name.split('_')[0] : currentProj?.id);
-            if (!id) id = currentCat[0].toLowerCase() + Date.now();
-            portfolio_data[id] = { title: backupContent.title, layout: backupContent.layout, thumbs: backupContent.thumbs || [] };
-            await saveToCloud();
-            if (isGlobal) renderProjGrid(); else { currentProj = { id, ...portfolio_data[id] }; showLevel(4); }
-        } catch (e) { alert("恢复失败"); }
     }
 
     async function showRestoreList() {
@@ -188,12 +180,15 @@
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
             const files = await res.json();
-            const safeTitle = currentProj.title.trim().replace(/\s+/g, '_').replace(/[\\/:*?"<>|]/g, '');
-            const pbs = files.filter(f => f.name.includes(currentProj.id) || f.name.startsWith(safeTitle)).sort((a, b) => b.name.localeCompare(a.name));
-            if (pbs.length === 0) return alert("无备份");
-            const choice = prompt("选择版本恢复：\n" + pbs.map((f, i) => `${i+1}. ${f.name}`).join('\n'));
-            if (choice && pbs[choice-1]) await performRestore(pbs[choice-1], false);
-        } catch (e) { alert("获取失败"); }
+            const pbs = files.filter(f => f.name.startsWith(currentProj.id)).sort((a, b) => b.name.localeCompare(a.name));
+            if (pbs.length === 0) return alert("暂无备份");
+            const choice = prompt(`选择恢复版本：\n` + pbs.map((f, i) => `${i+1}. ${f.name}`).join('\n'));
+            if (choice && pbs[choice-1]) {
+                const r = await fetch(pbs[choice-1].download_url);
+                portfolio_data[currentProj.id] = await r.json();
+                showLevel(4); await saveToCloud();
+            }
+        } catch (e) { alert("恢复失败"); }
     }
 
     async function showGlobalRestoreList() {
@@ -202,40 +197,39 @@
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
             const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
             const files = await res.json();
-            let allBackups = files.sort((a, b) => b.name.localeCompare(a.name)).slice(0, 50);
-            const groups = {};
-            allBackups.forEach(f => {
-                let pName = f.name.split('_')[0];
-                if (!groups[pName]) groups[pName] = [];
-                groups[pName].push(f);
-            });
-            let msg = "找回项目：\n"; let flatList = []; let counter = 1;
-            for (let name in groups) {
-                msg += `\n📂 ${name}\n`;
-                groups[name].forEach(f => { msg += `   ${counter}. ${f.name}\n`; flatList.push(f); counter++; });
+            const choice = prompt(`找回项目：\n` + files.slice(0,15).map((f, i) => `${i+1}. ${f.name}`).join('\n'));
+            if (choice && files[choice-1]) {
+                const r = await fetch(files[choice-1].download_url);
+                const id = files[choice-1].name.split('_')[0];
+                portfolio_data[id] = await r.json();
+                await saveToCloud(); renderProjGrid();
             }
-            const choice = prompt(msg);
-            if (choice && flatList[choice-1]) await performRestore(flatList[choice-1], true);
-        } catch (e) { alert("获取失败"); }
+        } catch (e) { alert("找回失败"); }
     }
 
     async function manualSaveWithBackup() {
-        const btn = document.getElementById('manualSaveBtn'); btn.innerText = "SAVING...";
-        await saveToCloud(); await runAutoBackup("Manual");
+        const btn = document.getElementById('manualSaveBtn');
+        btn.innerText = "SAVING..."; await saveToCloud(); await runAutoBackup("Manual");
         btn.innerText = "SUCCESS"; setTimeout(() => btn.innerText = "SAVE & BACKUP", 2000);
     }
 
+    // 1. 访客可见性优化：无论是否登录都加载数据
     async function initSystem() {
         const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
-        if (isAdmin && CONFIG.token) {
-            try {
-                const res = await fetch(`${apiUrl}?t=${Date.now()}`, { headers: {'Authorization': `token ${CONFIG.token}`} });
-                if (res.ok) portfolio_data = JSON.parse(decodeURIComponent(escape(atob((await res.json()).content))));
-            } catch(e) {}
-        }
+        try {
+            const headers = CONFIG.token ? {'Authorization': `token ${CONFIG.token}`} : {};
+            const res = await fetch(`${apiUrl}?t=${Date.now()}`, { headers });
+            if (res.ok) {
+                const json = await res.json();
+                portfolio_data = JSON.parse(decodeURIComponent(escape(atob(json.content))));
+            }
+        } catch(e) { console.error("Load Failed", e); }
+        
         document.getElementById('loading-bar').style.width = "100%";
-        setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; }, 500);
-        if(currentLvl === 2) renderCatGrid();
+        setTimeout(() => { 
+            document.getElementById('loading-screen').style.display = "none"; 
+            if(currentLvl === 2) renderCatGrid();
+        }, 500);
     }
 
     function renderCatGrid() { 
@@ -256,38 +250,67 @@
         }).join(''); 
     }
 
+    // 2. 文字卡片与交互核心重构
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
         const speedContent = content.replace(/src="([^"]+)"/g, (match, p1) => `src="${getAssetUrl(p1)}"`);
         d.innerHTML = `<div class="crop-container">${speedContent}</div><div class="resize-handle"></div>`;
         
-        const edit = d.querySelector('[contenteditable]');
+        const editArea = d.querySelector('.editable-content');
+
         d.onmousedown = (e) => {
-            if (e.target.contentEditable === "true" || !isAdmin || e.button !== 0) return;
-            e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-            d.classList.add('selected'); vp.appendChild(d); isDragging = true; dragTarget = d;
-            startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
+            if (d.classList.contains('editing') || !isAdmin || e.button !== 0) return;
+            e.stopPropagation(); 
+            document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
+            d.classList.add('selected'); vp.appendChild(d); 
+            isDragging = true; dragTarget = d;
+            startX = (e.clientX/zoom) - parseInt(d.style.left); 
+            startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
-        
-        if(edit) { 
-            edit.contentEditable = "false";
-            // 修复文字编辑：双击进入编辑模式
-            d.ondblclick = (e) => { 
-                if(!isAdmin) return; 
-                e.stopPropagation(); 
-                edit.contentEditable = "true"; 
-                edit.focus(); 
-                isDragging = false; 
-                dragTarget = null; 
-            }; 
-            edit.onmousedown = (e) => { if(edit.contentEditable === "true") e.stopPropagation(); };
-            edit.onblur = () => { edit.contentEditable = "false"; saveHistory(); saveToCloud(); }; 
+
+        if(editArea) {
+            d.ondblclick = (e) => {
+                if (!isAdmin) return;
+                e.stopPropagation();
+                d.classList.add('editing');
+                editArea.contentEditable = "true";
+                editArea.focus();
+                isDragging = false; dragTarget = null;
+            };
         }
 
         const rh = d.querySelector('.resize-handle');
         rh.onmousedown = (e) => { e.stopPropagation(); e.preventDefault(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
+        
         vp.appendChild(d); return d;
+    }
+
+    // 外部点击退出编辑
+    window.addEventListener('mousedown', (e) => {
+        document.querySelectorAll('.miro-item.editing').forEach(d => {
+            if (!d.contains(e.target)) {
+                d.classList.remove('editing');
+                const ea = d.querySelector('.editable-content');
+                if(ea) ea.contentEditable = "false";
+                saveToCloud();
+            }
+        });
+    });
+
+    function addText() {
+        const fontOptions = ARCHI_FONTS.map(f => `<option value="${f}">${f.replace(/'/g,'')}</option>`).join('');
+        const textHtml = `
+            <div class="text-toolbar">
+                <select onchange="document.execCommand('fontName', false, this.value)">${fontOptions}</select>
+                <button onclick="document.execCommand('bold', false, null)">B</button>
+                <button onclick="document.execCommand('justifyLeft', false, null)">左</button>
+                <button onclick="document.execCommand('justifyCenter', false, null)">中</button>
+                <button onclick="document.execCommand('justifyRight', false, null)">右</button>
+            </div>
+            <div class="editable-content" style="font-family:'Helvetica Neue'; font-weight:300; font-size:1.1rem; line-height:1.5;">New Text Content...</div>`;
+        createMiroItem(textHtml, '500px', '500px', '300px', 'auto');
+        saveHistory();
     }
 
     function saveHistory() {
@@ -309,44 +332,32 @@
         }
     }
 
-    // 核心：拖拽、吸附对齐与缩放逻辑
     window.onmousemove = (e) => {
         if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
         else if(isDragging && dragTarget && !isResizing) {
             let nx = (e.clientX/zoom) - startX;
             let ny = (e.clientY/zoom) - startY;
-
-            // --- 增强：10/50/100px 边界及对齐吸附 ---
-            const snapPoints = [0, 10, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
-            let snappedX = false, snappedY = false;
-
-            snapPoints.forEach(p => {
-                if (Math.abs(nx - p) < SNAP_THRESHOLD) { nx = p; snappedX = true; }
-                if (Math.abs(ny - p) < SNAP_THRESHOLD) { ny = p; snappedY = true; }
+            const snaps = [0, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
+            let sx = false, sy = false;
+            snaps.forEach(p => {
+                if(Math.abs(nx-p) < SNAP_THRESHOLD) { nx = p; sx = true; }
+                if(Math.abs(ny-p) < SNAP_THRESHOLD) { ny = p; sy = true; }
             });
-
-            // 辅助线显示逻辑
-            gX.style.display = snappedX ? 'block' : 'none';
-            if(snappedX) gX.style.left = nx + 'px';
-            gY.style.display = snappedY ? 'block' : 'none';
-            if(snappedY) gY.style.top = ny + 'px';
-
-            dragTarget.style.left = nx + "px";
-            dragTarget.style.top = ny + "px";
+            gX.style.display = sx ? 'block' : 'none'; if(sx) gX.style.left = nx + 'px';
+            gY.style.display = sy ? 'block' : 'none'; if(sy) gY.style.top = ny + 'px';
+            dragTarget.style.left = nx + "px"; dragTarget.style.top = ny + "px";
         } else if(isResizing && dragTarget) {
-            // --- 增强：缩放对齐 ---
             let nw = Math.max(50, startW + (e.clientX - startX)/zoom);
-            if (Math.abs(nw % 50) < SNAP_THRESHOLD) nw = Math.round(nw/50)*50;
+            if(Math.abs(nw % 50) < SNAP_THRESHOLD) nw = Math.round(nw/50)*50;
             dragTarget.style.width = nw + "px";
-            // 图片/视频自动维持比例
             if(dragTarget.querySelector('img, video')) dragTarget.style.height = "auto";
         }
     };
-    
+
     window.onmouseup = () => { 
         if(isDragging || isResizing) { saveHistory(); saveToCloud(); } 
         isDragging = isResizing = isPanning = false; 
-        gX.style.display = gY.style.display = 'none'; 
+        gX.style.display = gY.style.display = 'none';
     };
 
     bd.onmousedown = (e) => { if(currentLvl === 4 && (e.button === 1 || e.target === bd || e.target === vp)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); } };
@@ -372,7 +383,7 @@
         });
     }
 
-    function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; border:none; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
+    function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
     
     function showLevel(lvl, cat = '') {
         currentLvl=lvl; if(cat)currentCat=cat; 
@@ -390,24 +401,15 @@
         document.getElementById('mainNav').classList.toggle('visible', lvl>1); 
         document.getElementById('backBtnContainer').classList.toggle('show', lvl>1); 
         document.getElementById('addProjBtn').style.display=(lvl===3 && isAdmin)?'block':'none';
-        document.getElementById('restoreProjBtn').style.display=(lvl===3 && isAdmin)?'block':'none';
     }
 
     function createNewProject() { const title = prompt("Title:"); if(!title) return; const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = { title, layout: [], thumbs: [] }; saveToCloud().then(() => renderProjGrid()); }
-    
-    async function deleteProject(id, title) { 
-        if (prompt(`确定要永久删除 [ ${title} ] 吗？请输入项目名称确认:`) === title) { 
-            delete portfolio_data[id]; 
-            await saveToCloud(); renderProjGrid(); 
-        } 
-    }
-
+    async function deleteProject(id, title) { if (prompt(`Delete [ ${title} ]? Type name:`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); } }
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
     function handleBack() { if (currentLvl === 4) { if(isAdmin) runAutoBackup("BackBtn"); showLevel(3); } else if (currentLvl === 3) showLevel(2); else showLevel(1); }
-    function addText() { createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300;">New Text</div>`,'500px','500px','250px'); saveHistory(); }
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
-    function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
+    function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
     
     window.onload = () => { if(CONFIG.token) { isAdmin = true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; } initParticles(); animate(); initSystem(); };
     window.onresize = () => { cvs.width=window.innerWidth; cvs.height=window.innerHeight; };
