@@ -111,11 +111,25 @@
     let historyStack = [];
     let isSaving = false, savePending = false; 
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
-    const SNAP_THRESHOLD = 10;
-    const gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
+    const SNAP_THRESHOLD = 10, gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
+
+    async function initSystem() {
+        // 关键修复：即使没有 token，也要尝试获取公开数据
+        const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
+        try {
+            const headers = CONFIG.token ? {'Authorization': `token ${CONFIG.token}`} : {};
+            const res = await fetch(`${apiUrl}?t=${Date.now()}`, { headers });
+            if (res.ok) {
+                const json = await res.json();
+                portfolio_data = JSON.parse(decodeURIComponent(escape(atob(json.content))));
+            }
+        } catch(e) { console.error("Init failed", e); }
+        document.getElementById('loading-bar').style.width = "100%";
+        setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; if(currentLvl === 2) renderCatGrid(); }, 500);
+    }
 
     async function saveToCloud() { 
-        if(!isAdmin) return; 
+        if(!isAdmin || !CONFIG.token) return; 
         if (isSaving) { savePending = true; return; }
         isSaving = true;
         try {
@@ -141,87 +155,62 @@
     }
 
     async function runAutoBackup(reason = "Auto") {
-        if (!isAdmin || !currentProj) return;
+        if (!isAdmin || !CONFIG.token || !currentProj) return;
         try {
             const now = new Date();
             const bbb = now.toISOString().split('T')[0].replace(/-/g, '');
             const ccc = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
             const catPrefix = currentCat[0].toUpperCase();
-            const projName = (currentProj.title || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+            const projName = (document.getElementById('lvl4Title').innerText || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
-            const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
+            const headers = { 'Authorization': `token ${CONFIG.token}` };
+            
+            const res = await fetch(listUrl, { headers });
             let nextNum = 1;
             if (res.ok) {
                 const files = await res.json();
-                const projectFiles = files.filter(f => f.name.startsWith(`${catPrefix}_${projName}_`));
-                if (projectFiles.length > 0) {
-                    const nums = projectFiles.map(f => {
-                        const parts = f.name.split('_');
-                        const lastPart = parts[parts.length - 1].split('.')[0];
-                        return parseInt(lastPart) || 0;
-                    });
-                    nextNum = Math.max(...nums) + 1;
+                const pFiles = files.filter(f => f.name.startsWith(`${catPrefix}_${projName}_`)).sort((a,b)=>b.name.localeCompare(a.name));
+                if (pFiles.length >= 5) {
+                    for (let f of pFiles.slice(4)) { 
+                        await fetch(`${listUrl}/${f.name}`, { method: 'DELETE', headers, body: JSON.stringify({ message: "Clean", sha: f.sha }) });
+                    }
                 }
+                if (pFiles.length > 0) nextNum = parseInt(pFiles[0].name.split('_').pop()) + 1;
             }
-            const serial = nextNum.toString().padStart(2, '0');
-            const fileName = `${catPrefix}_${projName}_${bbb}_${ccc}_${serial}.json`;
-            await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}/${fileName}`, {
-                method: 'PUT', headers: { 'Authorization': `token ${CONFIG.token}` },
-                body: JSON.stringify({ message: `Backup [${reason}]: ${currentProj.title}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) })
-            });
-        } catch (e) { console.error("备份失败:", e); }
+            const fileName = `${catPrefix}_${projName}_${bbb}_${ccc}_${nextNum.toString().padStart(2, '0')}.json`;
+            await fetch(`${listUrl}/${fileName}`, { method: 'PUT', headers, body: JSON.stringify({ message: `Backup: ${projName}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) }) });
+        } catch (e) {}
+    }
+
+    function autoFitView() {
+        const items = Array.from(vp.querySelectorAll('.miro-item'));
+        if (items.length === 0) { zoom = 1; panX = 0; panY = 0; updateViewport(); return; }
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        items.forEach(el => {
+            const x = parseInt(el.style.left), y = parseInt(el.style.top);
+            const w = parseInt(el.style.width), h = el.offsetHeight || 200;
+            minX = Math.min(minX, x); minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+        });
+        const cW = maxX - minX, cH = maxY - minY, pad = 120;
+        zoom = Math.min((window.innerWidth - pad)/cW, (window.innerHeight - pad)/cH, 1.1);
+        zoom = Math.max(zoom, 0.15);
+        panX = (window.innerWidth/2) - (minX + cW/2)*zoom; panY = (window.innerHeight/2) - (minY + cH/2)*zoom;
+        updateViewport();
     }
 
     async function showGlobalRestoreList() {
         if (!isAdmin) return;
         try {
-            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
-            const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
-            if(!res.ok) throw new Error("读取失败");
+            const res = await fetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`, { headers: {'Authorization': `token ${CONFIG.token}`} });
             const files = await res.json();
-            const sortedFiles = files.sort((a, b) => b.name.localeCompare(a.name));
-            const choice = prompt(`恢复到【${currentCat}】：\n` + sortedFiles.slice(0,15).map((f, i) => `${i+1}. ${f.name}`).join('\n'));
-            if (!choice) return;
-            let file = (!isNaN(choice) && sortedFiles[parseInt(choice)-1]) ? sortedFiles[parseInt(choice)-1] : files.find(f => f.name.trim() === choice.trim());
-            if (file) {
-                const r = await fetch(file.download_url); const data = await r.json();
-                const newId = currentCat[0].toLowerCase() + Date.now(); portfolio_data[newId] = data; 
-                await saveToCloud(); renderProjGrid(); alert("✅ 已找回并重新归类！");
+            const choice = prompt(`恢复到【${currentCat}】：\n` + files.sort((a,b)=>b.name.localeCompare(a.name)).slice(0,15).map((f,i)=>`${i+1}. ${f.name}`).join('\n'));
+            if(choice && files[choice-1]){
+                const data = await (await fetch(files[choice-1].download_url)).json();
+                const newId = currentCat[0].toLowerCase() + Date.now(); portfolio_data[newId] = data;
+                await saveToCloud(); renderProjGrid(); alert("✅ 恢复成功");
             }
-        } catch (e) { alert("找回失败: " + e.message); }
-    }
-
-    async function showRestoreList() {
-        if (!isAdmin || !currentProj) return;
-        try {
-            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
-            const res = await fetch(listUrl, { headers: { 'Authorization': `token ${CONFIG.token}` } });
-            const files = await res.json();
-            const pbs = files.filter(f => f.name.includes(`_${(currentProj.title||"").replace(/\s+/g,'')}_`)).sort((a, b) => b.name.localeCompare(a.name));
-            if (pbs.length === 0) { alert("暂无相关备份。"); return; }
-            const choice = prompt(`恢复版本：\n` + pbs.map((f, i) => `${i+1}. ${f.name}`).join('\n'));
-            if (choice && pbs[choice-1]) {
-                const r = await fetch(pbs[choice-1].download_url); const data = await r.json();
-                portfolio_data[currentProj.id] = data; currentProj = {id: currentProj.id, ...data};
-                showLevel(4); await saveToCloud(); alert("版本已回退！");
-            }
-        } catch (e) { alert("获取备份失败"); }
-    }
-
-    async function manualSaveWithBackup() {
-        const btn = document.getElementById('manualSaveBtn'); btn.innerText = "SAVING..."; 
-        await saveToCloud(); await runAutoBackup("Manual");
-        btn.innerText = "SUCCESS"; setTimeout(() => btn.innerText = "SAVE & BACKUP", 2000);
-    }
-
-    async function initSystem() {
-        const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
-        try {
-            const res = await fetch(`${apiUrl}?t=${Date.now()}`, { headers: {'Authorization': `token ${CONFIG.token}`} });
-            if (res.ok) { portfolio_data = JSON.parse(decodeURIComponent(escape(atob((await res.json()).content)))); }
         } catch(e) {}
-        document.getElementById('loading-bar').style.width = "100%";
-        setTimeout(() => { document.getElementById('loading-screen').style.display = "none"; if(currentLvl === 2) renderCatGrid(); }, 500);
     }
 
     function renderCatGrid() { 
@@ -264,20 +253,19 @@
     }
 
     function undo() {
-        if(historyStack.length <= 1) return; historyStack.pop();
+        if(!isAdmin || historyStack.length <= 1) return; historyStack.pop();
         const prevState = JSON.parse(historyStack[historyStack.length - 1]);
         Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
         prevState.forEach(it => createMiroItem(it.html, it.x, it.y, it.w, it.h));
         saveToCloud();
     }
 
-    // 快捷键监听
     window.addEventListener('keydown', (e) => {
-        if (e.target.isContentEditable || e.target.tagName === 'INPUT') return;
+        if (e.target.isContentEditable || !isAdmin) return;
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
         if (e.key === 'Delete' || e.key === 'Backspace') {
             const sel = document.querySelector('.miro-item.selected');
-            if (sel && isAdmin) { e.preventDefault(); if(confirm("Delete component?")) { sel.remove(); saveHistory(); saveToCloud(); } }
+            if (sel) { e.preventDefault(); if(confirm("Delete?")) { sel.remove(); saveHistory(); saveToCloud(); } }
         }
     });
 
@@ -287,8 +275,7 @@
             let nX = (e.clientX/zoom) - startX, nY = (e.clientY/zoom) - startY;
             const tW = parseInt(dragTarget.style.width), tH = dragTarget.offsetHeight;
             gx.style.display = gy.style.display = 'none';
-            const others = Array.from(document.querySelectorAll('.miro-item')).filter(el => el !== dragTarget);
-            others.forEach(o => {
+            Array.from(document.querySelectorAll('.miro-item')).filter(o => o !== dragTarget).forEach(o => {
                 const ox = parseInt(o.style.left), oy = parseInt(o.style.top), ow = parseInt(o.style.width), oh = o.offsetHeight;
                 [ox, ox+ow, ox+ow/2-tW/2].forEach(sx => { if(Math.abs(nX-sx)<SNAP_THRESHOLD){ nX=sx; gx.style.left=(nX*zoom+panX)+"px"; gx.style.display='block'; } });
                 [oy, oy+oh, oy+oh/2-tH/2].forEach(sy => { if(Math.abs(nY-sy)<SNAP_THRESHOLD){ nY=sy; gy.style.top=(nY*zoom+panY)+"px"; gy.style.display='block'; } });
@@ -302,6 +289,31 @@
     bd.addEventListener('wheel', e => { if(currentLvl === 4) { e.preventDefault(); const f = Math.pow(1.1, -e.deltaY/120); const nz = Math.min(Math.max(zoom * f, 0.05), 5); panX = e.clientX - (e.clientX - panX) * (nz/zoom); panY = e.clientY - (e.clientY - panY) * (nz/zoom); zoom = nz; updateViewport(); } }, {passive:false});
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
 
+    function showLevel(lvl, cat = '') {
+        currentLvl=lvl; if(cat)currentCat=cat; 
+        document.querySelectorAll('.view-layer').forEach(el=>el.classList.remove('active')); 
+        document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none'; 
+        if(lvl===2)renderCatGrid(); if(lvl===3)renderProjGrid(); 
+        if(lvl===4){
+            Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
+            const p = portfolio_data[currentProj.id];
+            (p.layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); 
+            document.getElementById('lvl4Title').innerText=p.title; 
+            document.getElementById('lvl4Title').contentEditable = isAdmin;
+            document.getElementById('lvl4CatTag').innerText=currentCat;
+            document.getElementById('adminControls').style.display = isAdmin ? 'flex' : 'none';
+            setTimeout(autoFitView, 100);
+        }
+        document.getElementById('lvl'+lvl).classList.add('active'); 
+        document.documentElement.style.setProperty('--bg-blur', [0,15,30,0][lvl-1]+'px'); 
+        document.getElementById('mainNav').classList.toggle('visible', lvl>1); 
+        document.getElementById('backBtnContainer').classList.toggle('show', lvl>1); 
+        const isL3A = (lvl===3 && isAdmin);
+        document.getElementById('addProjBtn').style.display=isL3A?'block':'none';
+        document.getElementById('restoreProjBtn').style.display=isL3A?'block':'none';
+    }
+
+    // 初始化粒子和其他基础功能
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
     let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', ev => { m.x = ev.clientX; m.y = ev.clientY; });
@@ -318,14 +330,13 @@
 
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
-        const fs = Array.from(e.target.files); const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
+        const fs = Array.from(e.target.files), dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         fs.forEach(async (file, idx) => {
-            const taskId = "t_" + Date.now() + "_" + idx; 
             const r = new FileReader(); r.onload = async (re) => {
                 const item = createMiroItem(file.type.includes('image') ? `<img src="${re.target.result}">` : `<video src="${re.target.result}" autoplay loop muted></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
                 const xhr = new XMLHttpRequest(); xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
                 xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-                xhr.onload = () => { if(xhr.status < 300){ const url = JSON.parse(xhr.responseText).content.download_url; item.querySelector('img, video').src = getAssetUrl(url); saveToCloud(); } };
+                xhr.onload = () => { if(xhr.status < 300){ item.querySelector('img, video').src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); saveToCloud(); } };
                 xhr.send(JSON.stringify({message: "Upload", content: re.target.result.split(',')[1]}));
             }; r.readAsDataURL(file);
         });
@@ -333,26 +344,6 @@
 
     function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
     function addText() { createMiroItem(`<div contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px;">Double Click to Edit...</div>`,'500px','500px','250px'); saveHistory(); }
-    function showLevel(lvl, cat = '') {
-        currentLvl=lvl; if(cat)currentCat=cat; 
-        document.querySelectorAll('.view-layer').forEach(el=>el.classList.remove('active')); 
-        document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none'; 
-        if(lvl===2)renderCatGrid(); if(lvl===3)renderProjGrid(); 
-        if(lvl===4){
-            Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
-            (portfolio_data[currentProj.id].layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); 
-            document.getElementById('lvl4Title').innerText=portfolio_data[currentProj.id].title; document.getElementById('lvl4CatTag').innerText=currentCat;
-            document.getElementById('adminControls').style.display = isAdmin ? 'flex' : 'none';
-        }
-        document.getElementById('lvl'+lvl).classList.add('active'); 
-        document.documentElement.style.setProperty('--bg-blur', [0,15,30,0][lvl-1]+'px'); 
-        document.getElementById('mainNav').classList.toggle('visible', lvl>1); 
-        document.getElementById('backBtnContainer').classList.toggle('show', lvl>1); 
-        const isL3A = (lvl===3 && isAdmin);
-        document.getElementById('addProjBtn').style.display=isL3A?'block':'none';
-        document.getElementById('restoreProjBtn').style.display=isL3A?'block':'none';
-    }
-
     function createNewProject() { const title = prompt("Title:"); if(!title) return; const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = { title, layout: [], thumbs: [] }; saveToCloud().then(() => renderProjGrid()); }
     async function deleteProject(id, title) { if (prompt(`Delete [ ${title} ]? Type name:`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); } }
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
@@ -360,6 +351,7 @@
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
     function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
+    
     window.onload = () => { if(CONFIG.token) { isAdmin = true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; } initParticles(); animate(); initSystem(); };
     window.onresize = () => { cvs.width=window.innerWidth; cvs.height=window.innerHeight; };
     document.getElementById('dynamicNav').innerHTML=['Architecture','Computational','Interest','Photo','Ongoing'].map(c=>`<a onclick="showLevel(3, '${c}')">${c}</a>`).join('');
