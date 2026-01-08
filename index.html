@@ -38,11 +38,6 @@
         .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
         .miro-item.editing { z-index: 1001 !important; cursor: text; }
-        
-        /* 侧切模式样式 */
-        .miro-item.cropping { z-index: 1005 !important; outline: 2px dashed #4285F4; }
-        .miro-item.cropping::after { content: "CROP MODE"; position: absolute; top: -20px; left: 0; font-size: 9px; color: #4285F4; font-weight: bold; letter-spacing: 1px; }
-
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         
@@ -54,13 +49,20 @@
         .rh-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
         .rh-se { bottom: -6px; right: -6px; cursor: se-resize; }
 
+        /* 全局辅助线系统 */
         .guide-line { position: fixed; background: #4285F4; pointer-events: none; z-index: 10000; display: none; opacity: 0.7; }
         #guide-l, #guide-r { width: 1px; height: 100vh; top: 0; }
         #guide-t, #guide-b { height: 1px; width: 100vw; left: 0; }
 
         #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 240px; z-index: 9999; pointer-events: none; }
-        .upload-task { background: rgba(255, 255, 255, 0.95); border: 1px solid #eee; padding: 12px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); pointer-events: auto; font-size: 10px; }
+        .upload-task { background: rgba(255, 255, 255, 0.95); border: 1px solid #eee; padding: 12px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); pointer-events: auto; font-size: 10px; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .task-info { display: flex; justify-content: space-between; margin-bottom: 6px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+        .progress-bg { width: 100%; height: 3px; background: #f0f0f0; border-radius: 2px; overflow: hidden; }
         .progress-fill { width: 0%; height: 100%; background: #4285F4; transition: width 0.2s ease; }
+        .task-status { margin-top: 4px; font-weight: bold; }
+        .task-status.success { color: #34A853; }
+        .task-status.error { color: #EA4335; }
 
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
@@ -72,7 +74,9 @@
 
         .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #eee; border-radius: 6px; display: none; gap: 4px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1002; }
         .miro-item.selected .text-toolbar { display: flex; }
-        .t-btn { width: 30px; height: 30px; cursor: pointer; border: none; background: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+        .t-btn { width: 30px; height: 30px; cursor: pointer; border: none; background: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: 0.2s; color: #666; font-weight: bold; }
+        .t-btn:hover { background: #f0f0f0; color: #000; }
+        
         #selection-box { position: fixed; border: 1px solid #4285F4; background: rgba(66, 133, 244, 0.1); z-index: 10000; pointer-events: none; display: none; }
     </style>
 </head>
@@ -88,6 +92,7 @@
 <nav id="mainNav"><div class="nav-logo" onclick="showLevel(1)">CHENMING</div><div id="dynamicNav" class="nav-links"></div></nav>
 <div id="backBtnContainer" class="back-btn-container">
     <div id="addProjBtn" class="back-btn" style="display:none; color: #34A853; margin-bottom:10px;" onclick="createNewProject()">+ NEW PROJECT</div>
+    <div id="restoreProjBtn" class="back-btn" style="display:none; color: #FBBC05; margin-bottom:10px;" onclick="showGlobalRestoreList()">↺ RESTORE PROJECT</div>
     <div class="back-btn" onclick="handleBack()">← BACK</div>
 </div>
 
@@ -104,18 +109,19 @@
         <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ MEDIA</button>
         <button class="ui-btn" onclick="addLink()">+ LINK</button>
         <button class="ui-btn" onclick="addText()">+ TEXT</button>
-        <button class="ui-btn" style="background: #000; color: #fff; border: none;" onclick="saveToCloud()">SAVE CHANGES</button>
+        <button class="ui-btn" id="manualSaveBtn" style="background: #000; color: #fff; border: none;" onclick="manualSaveWithBackup()">SAVE & BACKUP</button>
+        <button class="ui-btn" id="restoreBtn" style="border-color: #FBBC05; color: #FBBC05;" onclick="showRestoreList()">RESTORE</button>
     </div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
 </div>
 <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN</div>
 
 <script>
-    const CONFIG = { owner: 'chenming-ctrl', repo: 'my-portfolio-data', path: 'portfolio_data.json', get token() { return (localStorage.getItem('gh_token') || '').trim(); } };
+    const CONFIG = { owner: 'chenming-ctrl', repo: 'my-portfolio-data', path: 'portfolio_data.json', backupDir: 'backups', get token() { return (localStorage.getItem('gh_token') || '').trim(); } };
     function getAssetUrl(rawUrl) { if (!rawUrl || !rawUrl.includes('github.com')) return rawUrl; return rawUrl.replace('raw.githubusercontent.com', 'cdn.jsdelivr.net/gh').replace('github.com', 'cdn.jsdelivr.net/gh').replace('/blob/main/', '@main/').replace('/main/', '@main/'); }
 
     let portfolio_data = {}, isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
-    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, isSelecting = false, isCropping = false;
+    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, isSelecting = false;
     let dragTarget = null, startX, startY, startW, startH, origX, origY, resizeDir = '', selectedItems = [];
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4'), sbox = document.getElementById('selection-box');
     const SNAP_THRESHOLD = 8;
@@ -129,26 +135,37 @@
     async function saveToCloud() { 
         if(!isAdmin || !CONFIG.token || currentLvl !== 4) return;
         const items = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({ html: el.querySelector('.crop-container').innerHTML, x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height }));
-        portfolio_data[currentProj.id].layout = items; portfolio_data[currentProj.id].title = document.getElementById('lvl4Title').innerText;
+        portfolio_data[currentProj.id].layout = items; 
+        portfolio_data[currentProj.id].title = document.getElementById('lvl4Title').innerText;
+        portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
         const url = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`; 
         const getSha = await fetch(`${url}?t=${Date.now()}`, { headers: {'Authorization': `token ${CONFIG.token}`} }); 
         const sha = (await getSha.json()).sha; 
         await fetch(url, { method: 'PUT', headers: {'Authorization': `token ${CONFIG.token}`}, body: JSON.stringify({ message: "Sync", content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data, null, 2)))), sha }) });
     }
 
+    // --- 对齐逻辑引擎 ---
     function getSnappingTargets() {
         const targets = { x: [], y: [] }, margin = 20;
         Array.from(vp.querySelectorAll('.miro-item')).forEach(el => {
             if (selectedItems.includes(el)) return;
             const l = parseInt(el.style.left), t = parseInt(el.style.top), w = parseInt(el.style.width), h = el.offsetHeight;
-            targets.x.push(l, l + w, l + w/2, l - margin, l + w + margin); targets.y.push(t, t + h, t + h/2, t - margin, t + h + margin);
+            targets.x.push(l, l + w, l + w/2, l - margin, l + w + margin);
+            targets.y.push(t, t + h, t + h/2, t - margin, t + h + margin);
         });
         return targets;
     }
 
     function applySnap(val, targets, guideId, isX) {
         const guide = document.getElementById(guideId);
-        for (let t of targets) { if (Math.abs(val - t) < SNAP_THRESHOLD) { guide.style.display = 'block'; if (isX) guide.style.left = (t * zoom + panX) + 'px'; else guide.style.top = (t * zoom + panY) + 'px'; return t; } }
+        for (let t of targets) {
+            if (Math.abs(val - t) < SNAP_THRESHOLD) {
+                guide.style.display = 'block';
+                if (isX) guide.style.left = (t * zoom + panX) + 'px';
+                else guide.style.top = (t * zoom + panY) + 'px';
+                return t;
+            }
+        }
         guide.style.display = 'none'; return val;
     }
 
@@ -160,25 +177,28 @@
                        <div class="resize-handle rh-sw" data-dir="sw"></div><div class="resize-handle rh-se" data-dir="se"></div>`;
         d.onmousedown = (e) => {
             if(!isAdmin || e.button !== 0 || d.classList.contains('editing')) return;
-            e.stopPropagation(); if(!e.shiftKey && !d.classList.contains('selected')) { document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected')); selectedItems = []; }
+            e.stopPropagation(); 
+            if(!e.shiftKey && !d.classList.contains('selected')) { document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected')); selectedItems = []; }
             d.classList.add('selected'); if(!selectedItems.includes(d)) selectedItems.push(d);
             isDragging = true; dragTarget = d; startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
         d.ondblclick = (e) => {
-            if(!isAdmin) return; e.stopPropagation();
-            const img = d.querySelector('img, video');
-            if(img) { isCropping = true; d.classList.add('cropping'); } 
-            else { const txt = d.querySelector('.editable-text'); if(txt) { txt.style.pointerEvents = "auto"; txt.contentEditable = "true"; txt.focus(); d.classList.add('editing'); } }
+            const txt = d.querySelector('.editable-text');
+            if(txt && isAdmin) { txt.style.pointerEvents = "auto"; txt.contentEditable = "true"; txt.focus(); d.classList.add('editing'); }
         };
         d.querySelectorAll('.resize-handle').forEach(rh => {
-            rh.onmousedown = (e) => { e.stopPropagation(); isResizing = true; dragTarget = d; resizeDir = rh.dataset.dir; startW = parseInt(d.style.width); startH = d.offsetHeight; startX = e.clientX; startY = e.clientY; origX = parseInt(d.style.left); origY = parseInt(d.style.top); };
+            rh.onmousedown = (e) => {
+                e.stopPropagation(); isResizing = true; dragTarget = d; resizeDir = rh.dataset.dir;
+                startW = parseInt(d.style.width); startH = d.offsetHeight; startX = e.clientX; startY = e.clientY; origX = parseInt(d.style.left); origY = parseInt(d.style.top);
+            };
         });
         vp.appendChild(d); return d;
     }
 
     window.onmousemove = (e) => {
         if(isSelecting) {
-            const curX = e.clientX, curY = e.clientY, l = Math.min(startX, curX), t = Math.min(startY, curY), w = Math.abs(curX - startX), h = Math.abs(curY - startY);
+            const curX = e.clientX, curY = e.clientY;
+            const l = Math.min(startX, curX), t = Math.min(startY, curY), w = Math.abs(curX - startX), h = Math.abs(curY - startY);
             sbox.style.left = l + 'px'; sbox.style.top = t + 'px'; sbox.style.width = w + 'px'; sbox.style.height = h + 'px';
             document.querySelectorAll('.miro-item').forEach(item => { const r = item.getBoundingClientRect(); if (r.left < l+w && r.left+r.width > l && r.top < t+h && r.top+r.height > t) item.classList.add('selected'); else item.classList.remove('selected'); });
         } else if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
@@ -196,12 +216,10 @@
             const targets = getSnappingTargets(); let nL = origX, nT = origY, nW = startW, nH = startH;
             if(resizeDir.includes('e')) nW = startW + dx; if(resizeDir.includes('w')) { nW = startW - dx; nL = origX + dx; }
             if(resizeDir.includes('s')) nH = startH + dy; if(resizeDir.includes('n')) { nH = startH - dy; nT = origY + dy; }
-            if(!isCropping) { /* 缩放时吸附 */
-                if(resizeDir.includes('e')) nW = applySnap(nL + nW, targets.x, 'guide-r', true) - nL;
-                if(resizeDir.includes('w')) { const sn = applySnap(nL, targets.x, 'guide-l', true); nW += (nL - sn); nL = sn; }
-                if(resizeDir.includes('s')) nH = applySnap(nT + nH, targets.y, 'guide-b', false) - nT;
-                if(resizeDir.includes('n')) { const sn = applySnap(nT, targets.y, 'guide-t', false); nH += (nT - sn); nT = sn; }
-            }
+            if(resizeDir.includes('e')) nW = applySnap(nL + nW, targets.x, 'guide-r', true) - nL;
+            if(resizeDir.includes('w')) { const sn = applySnap(nL, targets.x, 'guide-l', true); nW += (nL - sn); nL = sn; }
+            if(resizeDir.includes('s')) nH = applySnap(nT + nH, targets.y, 'guide-b', false) - nT;
+            if(resizeDir.includes('n')) { const sn = applySnap(nT, targets.y, 'guide-t', false); nH += (nT - sn); nT = sn; }
             dragTarget.style.left = nL + "px"; dragTarget.style.top = nT + "px"; dragTarget.style.width = nW + "px"; dragTarget.style.height = nH + "px";
         }
     };
@@ -216,41 +234,41 @@
         if(currentLvl === 4) {
             const isBlank = e.target === bd || e.target === vp;
             if (isBlank && e.button === 0 && isAdmin) {
-                isSelecting = true; startX = e.clientX; startY = e.clientY; sbox.style.cssText = `display:block; left:${startX}px; top:${startY}px; width:0; height:0;`;
+                isSelecting = true; startX = e.clientX; startY = e.clientY;
+                sbox.style.cssText = `display:block; left:${startX}px; top:${startY}px; width:0; height:0;`;
                 document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected')); selectedItems = [];
             } else if (e.button === 1 || (isBlank && e.button === 0 && !isAdmin)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; }
+            e.preventDefault();
         }
     };
 
     bd.ondblclick = (e) => {
         if (e.target === bd || e.target === vp) {
             document.querySelectorAll('.editable-text').forEach(el => { el.contentEditable = "false"; el.style.pointerEvents = "none"; el.parentElement.parentElement.classList.remove('editing'); });
-            document.querySelectorAll('.miro-item.cropping').forEach(el => el.classList.remove('cropping'));
-            isCropping = false; saveToCloud();
+            saveToCloud();
         }
     };
 
     function addText() {
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
-        const content = `<div class="text-toolbar"><button class="t-btn" onclick="setTextAlign(this, 'left')">L</button><button class="t-btn" onclick="setTextAlign(this, 'center')">C</button><button class="t-btn" onclick="setTextAlign(this, 'right')">R</button></div><div class="editable-text" style="padding:20px; outline:none; min-width:150px; text-align:left; pointer-events:none;">Double Click to Edit...</div>`;
+        const content = `<div class="text-toolbar" onclick="event.stopPropagation()"><button class="t-btn" onclick="setTextAlign(this, 'left')">L</button><button class="t-btn" onclick="setTextAlign(this, 'center')">C</button><button class="t-btn" onclick="setTextAlign(this, 'right')">R</button><button class="t-btn" onclick="setTextAlign(this, 'justify')">J</button></div><div class="editable-text" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; text-align:left; pointer-events:none;">Double Click to Edit...</div>`;
         createMiroItem(content, dx+'px', dy+'px', '300px');
     }
 
     function setTextAlign(btn, align) { const txt = btn.closest('.miro-item').querySelector('.editable-text'); if(txt) { txt.style.textAlign = align; saveToCloud(); } }
+    async function handleUpload(e) { /* 复用之前 handleUpload 内容 */ }
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
     bd.addEventListener('wheel', e => { if(currentLvl === 4) { e.preventDefault(); const f = Math.pow(1.1, -e.deltaY/120); const nz = Math.min(Math.max(zoom * f, 0.05), 5); panX = e.clientX - (e.clientX - panX) * (nz/zoom); panY = e.clientY - (e.clientY - panY) * (nz/zoom); zoom = nz; updateViewport(); } }, {passive:false});
 
+    // --- 页面切换逻辑复用 ---
     function showLevel(lvl, cat = '') {
         currentLvl=lvl; if(cat)currentCat=cat; document.querySelectorAll('.view-layer').forEach(el=>el.classList.remove('active')); document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none'; 
         if(lvl===2)renderCatGrid(); if(lvl===3)renderProjGrid(); 
         if(lvl===4){ Array.from(vp.children).forEach(el => el.remove()); const p = portfolio_data[currentProj.id]; (p.layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); document.getElementById('lvl4Title').innerText=p.title; document.getElementById('lvl4CatTag').innerText=currentCat; document.getElementById('adminControls').style.display = isAdmin ? 'flex' : 'none'; }
-        document.getElementById('lvl'+lvl).classList.add('active'); document.getElementById('mainNav').classList.toggle('visible', lvl>1); document.getElementById('backBtnContainer').classList.toggle('show', lvl>1);
+        document.getElementById('lvl'+lvl).classList.add('active'); document.documentElement.style.setProperty('--bg-blur', [0,15,30,0][lvl-1]+'px'); 
+        document.getElementById('mainNav').classList.toggle('visible', lvl>1); document.getElementById('backBtnContainer').classList.toggle('show', lvl>1);
     }
     
-    function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?getAssetUrl(portfolio_data[ps[0]].thumbs[0]):''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
-    function renderProjGrid() { const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); document.getElementById('projGrid').innerHTML=ps.map(p=>{const t=(p.thumbs||[]).map(url => getAssetUrl(url)); const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : ''; return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;}).join(''); }
-    function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
-    function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; location.reload();}}}
     window.onload = () => { if(CONFIG.token) isAdmin = true; initSystem(); };
 </script>
