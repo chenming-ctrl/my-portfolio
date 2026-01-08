@@ -37,6 +37,7 @@
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
         .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
+        .miro-item.editing { z-index: 1001 !important; cursor: text; }
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
@@ -64,17 +65,19 @@
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
 
-        /* 文本工具栏样式 */
         .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #eee; border-radius: 6px; display: none; gap: 4px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1002; }
         .miro-item.selected .text-toolbar { display: flex; }
         .t-btn { width: 30px; height: 30px; cursor: pointer; border: none; background: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: 0.2s; color: #666; font-weight: bold; }
         .t-btn:hover { background: #f0f0f0; color: #000; }
+        
+        #selection-box { position: fixed; border: 1px solid #4285F4; background: rgba(66, 133, 244, 0.1); z-index: 10000; pointer-events: none; display: none; }
     </style>
 </head>
 <body>
 
 <div id="loading-screen"><div style="width: 100px; height: 1px; background: #eee; position: relative; overflow: hidden;"><div id="loading-bar" style="width: 0%; height: 100%; background: #000; transition: 0.3s;"></div></div></div>
 <div id="global-upload-list"></div>
+<div id="selection-box"></div>
 <div id="canvas-container"><canvas id="particleCanvas"></canvas></div>
 <nav id="mainNav"><div class="nav-logo" onclick="showLevel(1)">CHENMING</div><div id="dynamicNav" class="nav-links"></div></nav>
 <div id="backBtnContainer" class="back-btn-container">
@@ -121,11 +124,11 @@
     }
 
     let portfolio_data = {}, isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
-    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false;
-    let dragTarget = null, startX, startY, startW;
+    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, isSelecting = false;
+    let dragTarget = null, startX, startY, startW, selectedItems = [];
     let historyStack = [];
     let isSaving = false, savePending = false; 
-    const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4');
+    const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4'), sbox = document.getElementById('selection-box');
     const SNAP_THRESHOLD = 10, gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
 
     async function initSystem() {
@@ -211,16 +214,13 @@
         if(!isAdmin || !currentProj) return;
         const fs = Array.from(e.target.files), container = document.getElementById('global-upload-list');
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
-
         fs.forEach(async (file, idx) => {
             const taskId = "t_" + Date.now() + "_" + idx;
             container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>${file.name.substring(0, 12)}...</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status" style="display:none;"></div></div>`);
             const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent');
-
             const { content, isCompressed } = await smartCompress(file);
             const previewSrc = isCompressed ? `data:image/jpeg;base64,${content}` : URL.createObjectURL(file);
             const item = createMiroItem(file.type.includes('image') ? `<img src="${previewSrc}" style="opacity:0.5">` : `<video src="${previewSrc}" muted style="opacity:0.5"></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
-
             const xhr = new XMLHttpRequest();
             xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
             xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
@@ -236,7 +236,6 @@
         });
     }
 
-    // 处理粘贴图片
     window.addEventListener('paste', async (e) => {
         if (!isAdmin || currentLvl !== 4) return;
         const items = e.clipboardData.items;
@@ -259,10 +258,26 @@
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
         d.innerHTML = `<div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div><div class="resize-handle"></div>`;
         d.onmousedown = (e) => {
-            if(!isAdmin || e.button !== 0) return;
-            e.stopPropagation(); document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-            d.classList.add('selected'); vp.appendChild(d); isDragging = true; dragTarget = d;
+            if(!isAdmin || e.button !== 0 || d.classList.contains('editing')) return;
+            e.stopPropagation(); 
+            if(!e.shiftKey && !d.classList.contains('selected')) {
+                document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
+                selectedItems = [];
+            }
+            d.classList.add('selected'); 
+            if(!selectedItems.includes(d)) selectedItems.push(d);
+            vp.appendChild(d); isDragging = true; dragTarget = d;
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
+        };
+        d.ondblclick = (e) => {
+            if(!isAdmin) return;
+            const textZone = d.querySelector('.editable-text');
+            if(textZone) {
+                textZone.style.pointerEvents = "auto";
+                textZone.contentEditable = "true";
+                textZone.focus();
+                d.classList.add('editing');
+            }
         };
         const rh = d.querySelector('.resize-handle');
         rh.onmousedown = (e) => { e.stopPropagation(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
@@ -271,10 +286,75 @@
 
     function addText() {
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
-        const content = `<div class="text-toolbar" onclick="event.stopPropagation()"><button class="t-btn" onclick="setTextAlign(this, 'left')">L</button><button class="t-btn" onclick="setTextAlign(this, 'center')">C</button><button class="t-btn" onclick="setTextAlign(this, 'right')">R</button><button class="t-btn" onclick="setTextAlign(this, 'justify')">J</button></div><div class="editable-text" contenteditable="true" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; text-align:left;">Double Click to Edit...</div>`;
+        const content = `<div class="text-toolbar" onclick="event.stopPropagation()"><button class="t-btn" onclick="setTextAlign(this, 'left')">L</button><button class="t-btn" onclick="setTextAlign(this, 'center')">C</button><button class="t-btn" onclick="setTextAlign(this, 'right')">R</button><button class="t-btn" onclick="setTextAlign(this, 'justify')">J</button></div><div class="editable-text" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; text-align:left; pointer-events:none;">Double Click to Edit...</div>`;
         createMiroItem(content, dx+'px', dy+'px', '300px');
         saveHistory();
     }
+
+    bd.ondblclick = (e) => {
+        if (e.target === bd || e.target === vp) {
+            document.querySelectorAll('.editable-text').forEach(el => {
+                el.contentEditable = "false";
+                el.style.pointerEvents = "none";
+                el.parentElement.parentElement.classList.remove('editing');
+            });
+            saveToCloud();
+        }
+    };
+
+    window.onmousemove = (e) => {
+        if(isSelecting) {
+            const curX = e.clientX, curY = e.clientY;
+            const l = Math.min(startX, curX), t = Math.min(startY, curY);
+            const w = Math.abs(curX - startX), h = Math.abs(curY - startY);
+            sbox.style.left = l + 'px'; sbox.style.top = t + 'px'; sbox.style.width = w + 'px'; sbox.style.height = h + 'px';
+            document.querySelectorAll('.miro-item').forEach(item => {
+                const r = item.getBoundingClientRect();
+                if (r.left < l+w && r.left+r.width > l && r.top < t+h && r.top+r.height > t) item.classList.add('selected');
+                else item.classList.remove('selected');
+            });
+        }
+        else if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
+        else if(isDragging && dragTarget && !isResizing) {
+            let nX = (e.clientX/zoom) - startX, nY = (e.clientY/zoom) - startY;
+            const diffX = nX - parseInt(dragTarget.style.left), diffY = nY - parseInt(dragTarget.style.top);
+            if (selectedItems.length > 1 && selectedItems.includes(dragTarget)) {
+                selectedItems.forEach(el => {
+                    el.style.left = (parseInt(el.style.left) + diffX) + "px";
+                    el.style.top = (parseInt(el.style.top) + diffY) + "px";
+                });
+            } else {
+                dragTarget.style.left = nX + "px"; dragTarget.style.top = nY + "px";
+            }
+        } else if(isResizing && dragTarget) { 
+            const newW = Math.max(50, startW + (e.clientX - startX)/zoom);
+            if(selectedItems.length > 1 && selectedItems.includes(dragTarget)) {
+                const ratio = newW / parseInt(dragTarget.style.width);
+                selectedItems.forEach(el => { el.style.width = (parseInt(el.style.width) * ratio) + "px"; });
+            } else { dragTarget.style.width = newW + "px"; }
+        }
+    };
+
+    window.onmouseup = () => {
+        if(isSelecting) { selectedItems = Array.from(document.querySelectorAll('.miro-item.selected')); sbox.style.display = 'none'; }
+        if(isDragging || isResizing) { saveHistory(); saveToCloud(); }
+        isDragging = isResizing = isPanning = isSelecting = false; gx.style.display = gy.style.display = 'none';
+    };
+
+    bd.onmousedown = (e) => {
+        if(currentLvl === 4) {
+            const isBlank = e.target === bd || e.target === vp;
+            if (isBlank && e.button === 0 && isAdmin) {
+                isSelecting = true; startX = e.clientX; startY = e.clientY;
+                sbox.style.cssText = `display:block; left:${startX}px; top:${startY}px; width:0; height:0;`;
+                document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
+                selectedItems = [];
+            } else if (e.button === 1 || (isBlank && e.button === 0 && !isAdmin)) {
+                isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY;
+            }
+            e.preventDefault();
+        }
+    };
 
     async function runAutoBackup(reason = "Auto") {
         if (!isAdmin || !CONFIG.token || !currentProj) return;
@@ -282,11 +362,9 @@
         const taskId = "backup_" + Date.now();
         const currentTitle = document.getElementById('lvl4Title').innerText.trim();
         const projName = (currentTitle || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
-        
         container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>BACKUP: ${projName.substring(0,10)}</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status info">INITIALIZING...</div></div>`);
         const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent'), sText = taskEl.querySelector('.task-status');
         const updateUI = (p, s) => { fill.style.width = p + '%'; pText.innerText = p + '%'; sText.innerText = s; };
-
         try {
             const headers = { 'Authorization': `token ${CONFIG.token}` };
             const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
@@ -344,28 +422,11 @@
         if (e.target.isContentEditable || !isAdmin) return;
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
         if (e.key === 'Delete' || e.key === 'Backspace') {
-            const sel = document.querySelector('.miro-item.selected');
-            if (sel) { e.preventDefault(); if(confirm("Delete?")) { sel.remove(); saveHistory(); saveToCloud(); } }
+            const sel = document.querySelectorAll('.miro-item.selected');
+            if (sel.length > 0) { e.preventDefault(); if(confirm(`Delete ${sel.length} items?`)) { sel.forEach(el => el.remove()); saveHistory(); saveToCloud(); } }
         }
     });
 
-    window.onmousemove = (e) => {
-        if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
-        else if(isDragging && dragTarget && !isResizing) {
-            let nX = (e.clientX/zoom) - startX, nY = (e.clientY/zoom) - startY;
-            const tW = parseInt(dragTarget.style.width), tH = dragTarget.offsetHeight;
-            gx.style.display = gy.style.display = 'none';
-            Array.from(document.querySelectorAll('.miro-item')).filter(o => o !== dragTarget).forEach(o => {
-                const ox = parseInt(o.style.left), oy = parseInt(o.style.top), ow = parseInt(o.style.width), oh = o.offsetHeight;
-                [ox, ox+ow, ox+ow/2-tW/2].forEach(sx => { if(Math.abs(nX-sx)<SNAP_THRESHOLD){ nX=sx; gx.style.left=(nX*zoom+panX)+"px"; gx.style.display='block'; } });
-                [oy, oy+oh, oy+oh/2-tH/2].forEach(sy => { if(Math.abs(nY-sy)<SNAP_THRESHOLD){ nY=sy; gy.style.top=(nY*zoom+panY)+"px"; gy.style.display='block'; } });
-            });
-            dragTarget.style.left = nX + "px"; dragTarget.style.top = nY + "px";
-        } else if(isResizing && dragTarget) { dragTarget.style.width = Math.max(50, startW + (e.clientX - startX)/zoom) + "px"; }
-    };
-
-    window.onmouseup = () => { if(isDragging || isResizing) { saveHistory(); saveToCloud(); } isDragging = isResizing = isPanning = false; gx.style.display = gy.style.display = 'none'; };
-    bd.onmousedown = (e) => { if(currentLvl === 4 && (e.button === 1 || e.target === bd || e.target === vp)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; e.preventDefault(); } };
     bd.addEventListener('wheel', e => { if(currentLvl === 4) { e.preventDefault(); const f = Math.pow(1.1, -e.deltaY/120); const nz = Math.min(Math.max(zoom * f, 0.05), 5); panX = e.clientX - (e.clientX - panX) * (nz/zoom); panY = e.clientY - (e.clientY - panY) * (nz/zoom); zoom = nz; updateViewport(); } }, {passive:false});
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
 
