@@ -38,11 +38,6 @@
         .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
         .miro-item.editing { z-index: 1001 !important; cursor: text; }
-        
-        /* 侧切模式样式 */
-        .miro-item.cropping { z-index: 1005 !important; outline: 2px dashed #4285F4; }
-        .miro-item.cropping::after { content: "CROP MODE"; position: absolute; top: -20px; left: 0; font-size: 9px; color: #4285F4; font-weight: bold; letter-spacing: 1px; }
-
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         
@@ -126,7 +121,7 @@
     function getAssetUrl(rawUrl) { if (!rawUrl || !rawUrl.includes('github.com')) return rawUrl; return rawUrl.replace('raw.githubusercontent.com', 'cdn.jsdelivr.net/gh').replace('github.com', 'cdn.jsdelivr.net/gh').replace('/blob/main/', '@main/').replace('/main/', '@main/'); }
 
     let portfolio_data = {}, isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
-    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, isSelecting = false, isCropping = false;
+    let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, isSelecting = false;
     let dragTarget = null, startX, startY, startW, startH, origX, origY, resizeDir = '', selectedItems = [];
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4'), sbox = document.getElementById('selection-box');
     const SNAP_THRESHOLD = 8;
@@ -188,15 +183,8 @@
             isDragging = true; dragTarget = d; startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
         d.ondblclick = (e) => {
-            if(!isAdmin) return; e.stopPropagation();
-            const img = d.querySelector('img, video');
-            if(img) { 
-                isCropping = true; 
-                d.classList.add('cropping'); 
-            } else {
-                const txt = d.querySelector('.editable-text');
-                if(txt) { txt.style.pointerEvents = "auto"; txt.contentEditable = "true"; txt.focus(); d.classList.add('editing'); }
-            }
+            const txt = d.querySelector('.editable-text');
+            if(txt && isAdmin) { txt.style.pointerEvents = "auto"; txt.contentEditable = "true"; txt.focus(); d.classList.add('editing'); }
         };
         d.querySelectorAll('.resize-handle').forEach(rh => {
             rh.onmousedown = (e) => {
@@ -228,14 +216,10 @@
             const targets = getSnappingTargets(); let nL = origX, nT = origY, nW = startW, nH = startH;
             if(resizeDir.includes('e')) nW = startW + dx; if(resizeDir.includes('w')) { nW = startW - dx; nL = origX + dx; }
             if(resizeDir.includes('s')) nH = startH + dy; if(resizeDir.includes('n')) { nH = startH - dy; nT = origY + dy; }
-            
-            // 侧切模式下禁用边缘吸附以保证精确遮挡，如需启用可移除此判断
-            if(!isCropping) {
-                if(resizeDir.includes('e')) nW = applySnap(nL + nW, targets.x, 'guide-r', true) - nL;
-                if(resizeDir.includes('w')) { const sn = applySnap(nL, targets.x, 'guide-l', true); nW += (nL - sn); nL = sn; }
-                if(resizeDir.includes('s')) nH = applySnap(nT + nH, targets.y, 'guide-b', false) - nT;
-                if(resizeDir.includes('n')) { const sn = applySnap(nT, targets.y, 'guide-t', false); nH += (nT - sn); nT = sn; }
-            }
+            if(resizeDir.includes('e')) nW = applySnap(nL + nW, targets.x, 'guide-r', true) - nL;
+            if(resizeDir.includes('w')) { const sn = applySnap(nL, targets.x, 'guide-l', true); nW += (nL - sn); nL = sn; }
+            if(resizeDir.includes('s')) nH = applySnap(nT + nH, targets.y, 'guide-b', false) - nT;
+            if(resizeDir.includes('n')) { const sn = applySnap(nT, targets.y, 'guide-t', false); nH += (nT - sn); nT = sn; }
             dragTarget.style.left = nL + "px"; dragTarget.style.top = nT + "px"; dragTarget.style.width = nW + "px"; dragTarget.style.height = nH + "px";
         }
     };
@@ -261,8 +245,6 @@
     bd.ondblclick = (e) => {
         if (e.target === bd || e.target === vp) {
             document.querySelectorAll('.editable-text').forEach(el => { el.contentEditable = "false"; el.style.pointerEvents = "none"; el.parentElement.parentElement.classList.remove('editing'); });
-            document.querySelectorAll('.miro-item.cropping').forEach(el => el.classList.remove('cropping'));
-            isCropping = false;
             saveToCloud();
         }
     };
@@ -278,6 +260,7 @@
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
     bd.addEventListener('wheel', e => { if(currentLvl === 4) { e.preventDefault(); const f = Math.pow(1.1, -e.deltaY/120); const nz = Math.min(Math.max(zoom * f, 0.05), 5); panX = e.clientX - (e.clientX - panX) * (nz/zoom); panY = e.clientY - (e.clientY - panY) * (nz/zoom); zoom = nz; updateViewport(); } }, {passive:false});
 
+    // --- 页面切换逻辑复用 ---
     function showLevel(lvl, cat = '') {
         currentLvl=lvl; if(cat)currentCat=cat; document.querySelectorAll('.view-layer').forEach(el=>el.classList.remove('active')); document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none'; 
         if(lvl===2)renderCatGrid(); if(lvl===3)renderProjGrid(); 
