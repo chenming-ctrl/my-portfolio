@@ -37,46 +37,50 @@
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
         
         /* 核心编辑样式 */
-        .miro-item { position: absolute; background: white; border: 2px solid transparent; user-select: none; transition: background 0.2s; }
+        .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
-        .miro-item.editing { background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.1); z-index: 1001 !important; }
+        .miro-item.editing { z-index: 1001 !important; cursor: text; box-shadow: 0 10px 40px rgba(0,0,0,0.15); }
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         
-        /* 裁切与文字样式 */
-        .miro-item.cropping .crop-container { outline: 2px dashed #4285F4; cursor: move; }
-        .miro-item.cropping img { pointer-events: auto !important; opacity: 0.6; filter: brightness(0.8); }
-        .editable-text { width: 100%; height: 100%; padding: 10px; outline: none; word-break: break-word; white-space: pre-wrap; pointer-events: none; box-sizing: border-box; }
-        .miro-item.editing .editable-text { pointer-events: auto; cursor: text; }
+        /* 裁切与对齐样式 */
+        .miro-item.cropping .crop-container { overflow: visible; }
+        .miro-item.cropping img { opacity: 0.4; pointer-events: auto !important; }
+        .crop-handle { position: absolute; background: #4285F4; z-index: 1005; border-radius: 2px; }
+        .ch-t, .ch-b { height: 4px; width: 40px; left: calc(50% - 20px); cursor: ns-resize; }
+        .ch-t { top: -2px; } .ch-b { bottom: -2px; }
+        .ch-l, .ch-r { width: 4px; height: 40px; top: calc(50% - 20px); cursor: ew-resize; }
+        .ch-l { left: -2px; } .ch-r { right: -2px; }
 
-        /* 四角缩放点 */
-        .resize-handle { position: absolute; width: 10px; height: 10px; background: #fff; border: 1.5px solid #4285F4; border-radius: 50%; display: none; z-index: 1001; }
-        .miro-item.selected .resize-handle { display: block; }
-        .handle-tl { top: -6px; left: -6px; cursor: nw-resize; }
-        .handle-tr { top: -6px; right: -6px; cursor: ne-resize; }
-        .handle-bl { bottom: -6px; left: -6px; cursor: sw-resize; }
-        .handle-br { bottom: -6px; right: -6px; cursor: se-resize; }
+        .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; border: 2px solid #fff; }
+        .miro-item.selected .resize-handle { display: flex; }
+        
+        /* 右键菜单 */
+        .context-menu { position: fixed; background: white; border: 1px solid #ddd; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border-radius: 8px; padding: 6px 0; z-index: 20000; display: none; min-width: 150px; }
+        .menu-item { padding: 10px 18px; font-size: 12px; cursor: pointer; color: #333; transition: 0.2s; }
+        .menu-item:hover { background: #f5f5f5; color: #4285F4; }
 
-        /* 辅助线 */
         .guide-line { position: fixed; background: #4285F4; pointer-events: none; z-index: 10000; display: none; opacity: 0.6; }
         #guide-x { width: 1px; height: 100vh; top: 0; }
         #guide-y { height: 1px; width: 100vw; left: 0; }
-
-        /* 文字对齐工具栏 */
-        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 4px; display: none; gap: 2px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1002; }
-        .miro-item.selected .text-toolbar { display: flex; }
-        .t-btn { width: 40px; height: 28px; border: none; background: #fff; cursor: pointer; font-size: 10px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
-        .t-btn:hover { background: #f0f0f0; }
-
         #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 240px; z-index: 9999; pointer-events: none; }
-        .upload-task { background: rgba(255, 255, 255, 0.95); border: 1px solid #eee; padding: 12px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); pointer-events: auto; font-size: 10px; }
+        .upload-task { background: rgba(255, 255, 255, 0.95); border: 1px solid #eee; padding: 12px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); pointer-events: auto; font-size: 10px; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .progress-bg { width: 100%; height: 3px; background: #f0f0f0; border-radius: 2px; overflow: hidden; margin-top: 6px; }
+        .progress-fill { width: 0%; height: 100%; background: #4285F4; transition: width 0.2s ease; }
+
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
-        .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; }
+        .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
         .back-btn-container.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; padding: 10px; }
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
+
+        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #eee; border-radius: 6px; display: none; gap: 4px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1002; }
+        .miro-item.selected .text-toolbar { display: flex; }
+        .t-btn { width: 30px; height: 30px; cursor: pointer; border: none; background: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: 0.2s; color: #666; font-weight: bold; }
+        .t-btn:hover { background: #f0f0f0; color: #000; }
         #selection-box { position: fixed; border: 1px solid #4285F4; background: rgba(66, 133, 244, 0.1); z-index: 10000; pointer-events: none; display: none; }
     </style>
 </head>
@@ -109,6 +113,11 @@
         <button class="ui-btn" onclick="addText()">+ TEXT</button>
         <button class="ui-btn" id="manualSaveBtn" style="background: #000; color: #fff; border: none;" onclick="manualSaveWithBackup()">SAVE</button>
     </div>
+    <div id="miroContextMenu" class="context-menu">
+        <div class="menu-item" id="menuEdit">编辑内容 / 裁切</div>
+        <div class="menu-item" id="menuRotate">顺时针旋转 90°</div>
+        <div class="menu-item" style="color:#EA4335;" id="menuDelete">删除对象 (Del)</div>
+    </div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
 </div>
 <div class="admin-lock" onclick="checkUnlock()" id="adminInfo">ADMIN LOGIN</div>
@@ -119,9 +128,10 @@
     
     let portfolio_data = {}, isAdmin = false, currentLvl = 1, currentCat = '', currentProj = null;
     let zoom = 1, panX = 0, panY = 0, isPanning = false, isDragging = false, isResizing = false, isSelecting = false;
-    let dragTarget = null, activeHandle = '', startX, startY, startW, startH, startL, startT, selectedItems = [];
-    const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4'), sbox = document.getElementById('selection-box'), gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
-    const SNAP_THRESHOLD = 10;
+    let dragTarget = null, currentRightTarget = null, startX, startY, startW, selectedItems = [];
+    let historyStack = [];
+    const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4'), sbox = document.getElementById('selection-box'), menu = document.getElementById('miroContextMenu');
+    const gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
 
     async function initSystem() {
         const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
@@ -154,14 +164,7 @@
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
-        d.innerHTML = `
-            <div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div>
-            <div class="resize-handle handle-tl" data-handle="tl"></div>
-            <div class="resize-handle handle-tr" data-handle="tr"></div>
-            <div class="resize-handle handle-bl" data-handle="bl"></div>
-            <div class="resize-handle handle-br" data-handle="br"></div>
-        `;
-        
+        d.innerHTML = `<div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div><div class="resize-handle"></div>`;
         d.onmousedown = (e) => {
             if(!isAdmin || e.button !== 0 || d.classList.contains('editing')) return;
             e.stopPropagation(); 
@@ -170,44 +173,96 @@
             vp.appendChild(d); isDragging = true; dragTarget = d;
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
-        
-        d.ondblclick = (e) => {
-            if(!isAdmin) return; e.stopPropagation();
-            const textZone = d.querySelector('.editable-text');
-            if(textZone) { 
-                d.classList.add('editing'); textZone.style.pointerEvents = "auto"; textZone.contentEditable = "true"; textZone.focus(); 
-                return;
-            }
-            const img = d.querySelector('img');
-            if(img) { const isC = d.classList.toggle('cropping'); img.style.position = isC ? 'absolute' : 'relative'; if(!isC) { img.style.opacity = "1"; saveToCloud(); } }
-        };
-        
-        d.querySelectorAll('.resize-handle').forEach(h => {
-            h.onmousedown = (e) => {
-                e.stopPropagation(); isResizing = true; dragTarget = d; activeHandle = h.dataset.handle;
-                startX = e.clientX; startY = e.clientY; startW = d.offsetWidth; startH = d.offsetHeight;
-                startL = parseInt(d.style.left); startT = parseInt(d.style.top);
-            };
-        });
+        const rh = d.querySelector('.resize-handle');
+        rh.onmousedown = (e) => { e.stopPropagation(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
+    }
+
+    // 右键与裁切逻辑集成
+    window.oncontextmenu = (e) => {
+        const item = e.target.closest('.miro-item');
+        if (isAdmin && currentLvl === 4 && item) {
+            e.preventDefault(); currentRightTarget = item;
+            menu.style.display = 'block'; menu.style.left = e.clientX + 'px'; menu.style.top = e.clientY + 'px';
+        } else { menu.style.display = 'none'; }
+    };
+    window.addEventListener('click', () => menu.style.display = 'none');
+
+    document.getElementById('menuEdit').onclick = () => {
+        const d = currentRightTarget; const txt = d.querySelector('.editable-text');
+        if (txt) { d.classList.add('editing'); txt.style.pointerEvents = "auto"; txt.contentEditable = "true"; txt.focus(); } 
+        else { enterPreciseCrop(d); }
+    };
+
+    function enterPreciseCrop(item) {
+        if (item.classList.contains('cropping')) return;
+        item.classList.add('cropping'); saveHistory();
+        const img = item.querySelector('img'); if(!img) return;
+        ['t', 'b', 'l', 'r'].forEach(s => {
+            const h = document.createElement('div'); h.className = `crop-handle ch-${s}`;
+            h.onmousedown = (e) => {
+                e.stopPropagation(); const startM = { x: e.clientX, y: e.clientY };
+                const startRect = { t: parseInt(item.style.top), l: parseInt(item.style.left), w: item.offsetWidth, h: item.offsetHeight, iT: parseInt(img.style.top || 0), iL: parseInt(img.style.left || 0) };
+                window.onmousemove = (me) => {
+                    const dx = (me.clientX - startM.x) / zoom; const dy = (me.clientY - startM.y) / zoom;
+                    if (s === 't') { item.style.top = (startRect.t + dy) + "px"; item.style.height = (startRect.h - dy) + "px"; img.style.top = (startRect.iT - dy) + "px"; }
+                    else if (s === 'b') { item.style.height = (startRect.h + dy) + "px"; }
+                    else if (s === 'l') { item.style.left = (startRect.l + dx) + "px"; item.style.width = (startRect.w - dx) + "px"; img.style.left = (startRect.iL - dx) + "px"; }
+                    else if (s === 'r') { item.style.width = (startRect.w + dx) + "px"; }
+                };
+                window.onmouseup = () => { window.onmousemove = null; saveToCloud(); };
+            };
+            item.appendChild(h);
+        });
+    }
+
+    document.getElementById('menuRotate').onclick = () => {
+        const img = currentRightTarget.querySelector('img'); if(!img) return;
+        saveHistory(); let r = parseInt(img.dataset.rotate || 0) + 90;
+        img.style.transform = `rotate(${r}deg)`; img.dataset.rotate = r; saveToCloud();
+    };
+
+    document.getElementById('menuDelete').onclick = () => { if(confirm("Delete item?")) { saveHistory(); currentRightTarget.remove(); saveToCloud(); } };
+
+    // 快捷键绑定
+    window.addEventListener('keydown', (e) => {
+        if (!isAdmin || currentLvl !== 4 || e.target.isContentEditable) return;
+        if (e.key === "Delete" || e.key === "Backspace") {
+            if (selectedItems.length > 0) { saveHistory(); selectedItems.forEach(el => el.remove()); selectedItems = []; saveToCloud(); }
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); }
+    });
+
+    function saveHistory() {
+        const state = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({ html: el.querySelector('.crop-container').innerHTML, x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height }));
+        historyStack.push(JSON.stringify(state)); if(historyStack.length > 30) historyStack.shift();
+    }
+
+    function undo() {
+        if(historyStack.length <= 1) return; historyStack.pop();
+        const prevState = JSON.parse(historyStack[historyStack.length - 1]);
+        Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
+        prevState.forEach(it => createMiroItem(it.html, it.x, it.y, it.w, it.h)); saveToCloud();
     }
 
     function addText() {
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
-        const content = `
-            <div class="text-toolbar" onclick="event.stopPropagation()">
-                <button class="t-btn" onclick="setTextAlign(this, 'left')">Left</button>
-                <button class="t-btn" onclick="setTextAlign(this, 'center')">Center</button>
-                <button class="t-btn" onclick="setTextAlign(this, 'right')">Right</button>
-                <button class="t-btn" onclick="setTextAlign(this, 'justify')">Full</button>
-            </div>
-            <div class="editable-text" spellcheck="false">New Text...</div>`;
-        createMiroItem(content, dx+'px', dy+'px', '250px');
+        const content = `<div class="text-toolbar" onclick="event.stopPropagation()"><button class="t-btn" onclick="setTextAlign(this, 'left')">L</button><button class="t-btn" onclick="setTextAlign(this, 'center')">C</button><button class="t-btn" onclick="setTextAlign(this, 'right')">R</button><button class="t-btn" onclick="setTextAlign(this, 'justify')">J</button></div><div class="editable-text" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; text-align:left; pointer-events:none;">Double Click or Right Click to Edit...</div>`;
+        createMiroItem(content, dx+'px', dy+'px', '300px'); saveHistory();
     }
 
-    function setTextAlign(btn, align) { const text = btn.closest('.miro-item').querySelector('.editable-text'); if(text) { text.style.textAlign = align; saveToCloud(); } }
+    function setTextAlign(btn, align) { const t = btn.closest('.miro-item').querySelector('.editable-text'); if(t) { t.style.textAlign = align; saveToCloud(); } }
 
-    function showGuide(type, pos) { const el = (type === 'x') ? gx : gy; el.style.display = 'block'; if(type === 'x') el.style.left = pos + 'px'; else el.style.top = pos + 'px'; }
+    bd.ondblclick = (e) => {
+        if (e.target === bd || e.target === vp) {
+            document.querySelectorAll('.miro-item').forEach(el => {
+                el.classList.remove('editing', 'cropping');
+                const t = el.querySelector('.editable-text'); if(t) { t.contentEditable = "false"; t.style.pointerEvents = "none"; }
+                el.querySelectorAll('.crop-handle').forEach(h => h.remove());
+            });
+            saveToCloud();
+        }
+    };
 
     window.onmousemove = (e) => {
         if(isSelecting) {
@@ -217,51 +272,27 @@
         }
         else if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
         else if(isDragging && dragTarget && !isResizing) {
-            if(dragTarget.classList.contains('cropping')){
-                const img = dragTarget.querySelector('img');
-                img.style.left = (parseInt(img.style.left || 0) + (e.movementX/zoom)) + "px"; img.style.top = (parseInt(img.style.top || 0) + (e.movementY/zoom)) + "px";
-            } else {
-                let nX = (e.clientX/zoom) - startX, nY = (e.clientY/zoom) - startY;
-                gx.style.display = gy.style.display = 'none';
-                document.querySelectorAll('.miro-item').forEach(other => {
-                    if(other === dragTarget) return;
-                    const oL = parseInt(other.style.left), oT = parseInt(other.style.top), oR = oL + other.offsetWidth, oB = oT + other.offsetHeight, tW = dragTarget.offsetWidth, tH = dragTarget.offsetHeight;
-                    if(Math.abs(nX - oL) < SNAP_THRESHOLD) { nX = oL; showGuide('x', oL * zoom + panX); }
-                    if(Math.abs(nX + tW - oR) < SNAP_THRESHOLD) { nX = oR - tW; showGuide('x', oR * zoom + panX); }
-                    if(Math.abs(nY - oT) < SNAP_THRESHOLD) { nY = oT; showGuide('y', oT * zoom + panY); }
-                    if(Math.abs(nY + tH - oB) < SNAP_THRESHOLD) { nY = oB - tH; showGuide('y', oB * zoom + panY); }
-                });
-                dragTarget.style.left = nX + "px"; dragTarget.style.top = nY + "px";
-            }
-        } else if(isResizing && dragTarget) {
-            const dx = (e.clientX - startX)/zoom, dy = (e.clientY - startY)/zoom; gx.style.display = gy.style.display = 'none';
-            if(activeHandle === 'br') { dragTarget.style.width = (startW + dx) + "px"; dragTarget.style.height = (startH + dy) + "px"; showGuide('x', (startL + startW + dx) * zoom + panX); showGuide('y', (startT + startH + dy) * zoom + panY); }
-            else if(activeHandle === 'tl') { dragTarget.style.width = (startW - dx) + "px"; dragTarget.style.height = (startH - dy) + "px"; dragTarget.style.left = (startL + dx) + "px"; dragTarget.style.top = (startT + dy) + "px"; showGuide('x', (startL + dx) * zoom + panX); showGuide('y', (startT + dy) * zoom + panY); }
-            else if(activeHandle === 'tr') { dragTarget.style.width = (startW + dx) + "px"; dragTarget.style.height = (startH - dy) + "px"; dragTarget.style.top = (startT + dy) + "px"; showGuide('x', (startL + startW + dx) * zoom + panX); showGuide('y', (startT + dy) * zoom + panY); }
-            else if(activeHandle === 'bl') { dragTarget.style.width = (startW - dx) + "px"; dragTarget.style.height = (startH + dy) + "px"; dragTarget.style.left = (startL + dx) + "px"; showGuide('x', (startL + dx) * zoom + panX); showGuide('y', (startT + startH + dy) * zoom + panY); }
+            let nX = (e.clientX/zoom) - startX, nY = (e.clientY/zoom) - startY;
+            const diffX = nX - parseInt(dragTarget.style.left), diffY = nY - parseInt(dragTarget.style.top);
+            if (selectedItems.length > 1 && selectedItems.includes(dragTarget)) { selectedItems.forEach(el => { el.style.left = (parseInt(el.style.left) + diffX) + "px"; el.style.top = (parseInt(el.style.top) + diffY) + "px"; }); } 
+            else { dragTarget.style.left = nX + "px"; dragTarget.style.top = nY + "px"; }
+        } else if(isResizing && dragTarget) { 
+            const newW = Math.max(50, startW + (e.clientX - startX)/zoom);
+            if(selectedItems.length > 1 && selectedItems.includes(dragTarget)) { const ratio = newW / parseInt(dragTarget.style.width); selectedItems.forEach(el => { el.style.width = (parseInt(el.style.width) * ratio) + "px"; }); } 
+            else { dragTarget.style.width = newW + "px"; }
         }
     };
 
-    window.onmouseup = () => { if(isSelecting) { selectedItems = Array.from(document.querySelectorAll('.miro-item.selected')); sbox.style.display = 'none'; } if(isDragging || isResizing) saveToCloud(); isDragging = isResizing = isPanning = isSelecting = false; gx.style.display = gy.style.display = 'none'; };
-
+    window.onmouseup = () => { if(isSelecting) { selectedItems = Array.from(document.querySelectorAll('.miro-item.selected')); sbox.style.display = 'none'; } if(isDragging || isResizing) { saveHistory(); saveToCloud(); } isDragging = isResizing = isPanning = isSelecting = false; };
     bd.onmousedown = (e) => { if(currentLvl === 4) { const isB = e.target === bd || e.target === vp; if (isB && e.button === 0 && isAdmin) { isSelecting = true; startX = e.clientX; startY = e.clientY; sbox.style.cssText = `display:block; left:${startX}px; top:${startY}px; width:0; height:0;`; document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected')); selectedItems = []; } else if (e.button === 1 || (isB && e.button === 0 && !isAdmin)) { isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY; } e.preventDefault(); } };
-
-    bd.ondblclick = (e) => { if (e.target === bd || e.target === vp) { document.querySelectorAll('.miro-item').forEach(el => { el.classList.remove('editing'); const t = el.querySelector('.editable-text'); if(t) { t.contentEditable = "false"; t.style.pointerEvents = "none"; } const i = el.querySelector('img'); if(i) i.style.opacity = "1"; el.classList.remove('cropping'); }); saveToCloud(); } };
-
-    function showLevel(lvl, cat = '') {
-        currentLvl=lvl; if(cat)currentCat=cat; document.querySelectorAll('.view-layer').forEach(el=>el.classList.remove('active')); document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none'; 
-        if(lvl===2)renderCatGrid(); if(lvl===3)renderProjGrid(); 
-        if(lvl===4){ Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); }); const p = portfolio_data[currentProj.id]; (p.layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); document.getElementById('lvl4Title').innerText=p.title; document.getElementById('lvl4Title').contentEditable = isAdmin; document.getElementById('lvl4CatTag').innerText=currentCat; document.getElementById('adminControls').style.display = isAdmin ? 'flex' : 'none'; setTimeout(autoFitView, 100); }
-        document.getElementById('lvl'+lvl).classList.add('active'); document.documentElement.style.setProperty('--bg-blur', [0,15,30,0][lvl-1]+'px'); document.getElementById('mainNav').classList.toggle('visible', lvl>1); document.getElementById('backBtnContainer').classList.toggle('show', lvl>1);
-    }
 
     async function handleUpload(e) {
         if(!isAdmin || !currentProj) return; const fs = Array.from(e.target.files); const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         fs.forEach(async (file, idx) => {
             const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = async (ev) => {
-                const item = createMiroItem(`<img src="${ev.target.result}">`, (dx+idx*30)+'px', (dy+idx*30)+'px');
+                const item = createMiroItem(file.type.includes('image') ? `<img src="${ev.target.result}">` : `<video src="${ev.target.result}" muted></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
                 const xhr = new XMLHttpRequest(); xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`); xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-                xhr.onload = () => { if (xhr.status < 300) { item.querySelector('img').src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); saveToCloud(); } };
+                xhr.onload = () => { if (xhr.status < 300) { item.querySelector('img, video').src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); saveHistory(); saveToCloud(); } };
                 xhr.send(JSON.stringify({message: "Upload", content: ev.target.result.split(',')[1]}));
             };
         });
