@@ -39,7 +39,6 @@
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
         .miro-item.editing { z-index: 1001 !important; cursor: text; }
         
-        /* CROP FUNCTIONALITY CSS */
         .miro-item.cropping .crop-container { outline: 2px dashed #4285F4; cursor: move; }
         .miro-item.cropping img { pointer-events: auto !important; opacity: 0.6; }
         
@@ -48,14 +47,6 @@
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
-        /* TEXT EDITING ENHANCEMENTS */
-        .edit-trigger { position: absolute; top: 5px; right: 10px; font-size: 10px; color: #000; cursor: pointer; text-decoration: underline; display: none; z-index: 1002; font-weight: bold; }
-        .miro-item.selected:not(.editing) .edit-trigger { display: block; }
-        .text-edit-header { position: absolute; top: 0; left: 0; width: 100%; height: 35px; background: #f8f9fa; border-bottom: 1px solid #eee; display: none; align-items: center; justify-content: space-between; padding: 0 10px; box-sizing: border-box; z-index: 1005; }
-        .miro-item.editing .text-edit-header { display: flex; }
-        .done-btn { background: #000; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 10px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
-        .toolbar-select { font-size: 10px; border: 1px solid #ddd; background: #fff; margin-right: 5px; outline: none; padding: 2px; }
-
         .guide-line { position: fixed; background: #4285F4; pointer-events: none; z-index: 10000; display: none; opacity: 0.6; }
         #guide-x { width: 1px; height: 100vh; top: 0; }
         #guide-y { height: 1px; width: 100vw; left: 0; }
@@ -77,6 +68,13 @@
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; padding: 10px; }
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
+
+        /* 文字补丁增强样式 */
+        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #eee; border-radius: 6px; display: none; gap: 4px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1002; align-items: center; }
+        .miro-item.selected .text-toolbar { display: flex; }
+        .t-btn { width: 28px; height: 28px; cursor: pointer; border: none; background: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: 0.2s; color: #666; font-weight: bold; }
+        .t-btn:hover { background: #f0f0f0; color: #000; }
+        .t-divider { width: 1px; height: 15px; background: #eee; margin: 0 2px; }
         
         #selection-box { position: fixed; border: 1px solid #4285F4; background: rgba(66, 133, 244, 0.1); z-index: 10000; pointer-events: none; display: none; }
     </style>
@@ -218,9 +216,9 @@
         });
     }
 
-    async function handleUpload(e) {
+    async function handleUpload(event) {
         if(!isAdmin || !currentProj) return;
-        const fs = Array.from(e.target.files), container = document.getElementById('global-upload-list');
+        const fs = Array.from(event.target.files), container = document.getElementById('global-upload-list');
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         fs.forEach(async (file, idx) => {
             const taskId = "t_" + Date.now() + "_" + idx;
@@ -255,60 +253,16 @@
         }
     });
 
-    function setTextAlign(btn, align) {
-        const item = btn.closest('.miro-item');
-        const textEl = item.querySelector('.editable-text');
-        if (textEl) { textEl.style.textAlign = align; saveToCloud(); }
-    }
-
-    // TEXT EDITING LOGIC
-    function enterTextEdit(btn) {
-        const item = btn.closest('.miro-item');
-        const textZone = item.querySelector('.editable-text');
-        item.classList.add('editing');
-        textZone.contentEditable = "true";
-        textZone.style.pointerEvents = "auto";
-        textZone.focus();
-        isDragging = false; 
-    }
-
-    function exitTextEdit(btn) {
-        const item = btn.closest('.miro-item');
-        const textZone = item.querySelector('.editable-text');
-        item.classList.remove('editing');
-        textZone.contentEditable = "false";
-        textZone.style.pointerEvents = "none";
+    // 文字补丁：富文本命令
+    function execTextCommand(command) {
+        document.execCommand(command, false, null);
         saveToCloud();
     }
 
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
-        const isText = content.includes('editable-text');
-
-        d.innerHTML = `
-            ${isText && isAdmin ? `
-                <div class="text-edit-header">
-                    <div class="format-controls">
-                        <select class="toolbar-select" onchange="document.execCommand('formatBlock', false, this.value)">
-                            <option value="P">Paragraph</option>
-                            <option value="H1">Heading 1</option>
-                            <option value="H2">Heading 2</option>
-                        </select>
-                        <select class="toolbar-select" onchange="document.execCommand('fontName', false, this.value)">
-                            <option value="Helvetica Neue">Helvetica</option>
-                            <option value="Georgia">Serif</option>
-                            <option value="Courier New">Mono</option>
-                        </select>
-                    </div>
-                    <button class="done-btn" onclick="exitTextEdit(this)">✓ 完成</button>
-                </div>
-                <div class="edit-trigger" onclick="enterTextEdit(this)">EDIT</div>
-            ` : ''}
-            <div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div>
-            <div class="resize-handle"></div>
-        `;
-
+        d.innerHTML = `<div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div><div class="resize-handle"></div>`;
         d.onmousedown = (e) => {
             if(!isAdmin || e.button !== 0 || d.classList.contains('editing')) return;
             e.stopPropagation(); 
@@ -322,11 +276,15 @@
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
         
+        // 文字补丁逻辑整合：双击区分文字与裁剪
         d.ondblclick = (e) => {
             if(!isAdmin) return;
             const textZone = d.querySelector('.editable-text');
             if(textZone) {
-                enterTextEdit(d.querySelector('.edit-trigger'));
+                textZone.style.pointerEvents = "auto";
+                textZone.contentEditable = "true";
+                textZone.focus();
+                d.classList.add('editing'); // 锁定拖拽，允许选中文本
                 return;
             }
             const img = d.querySelector('img');
@@ -350,13 +308,24 @@
         vp.appendChild(d); return d;
     }
 
+    // 文字补丁：增强版文字卡片添加
     function addText() {
-        const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
-        const content = `<div class="editable-text" style="padding:40px 20px 20px; font-size:1.1rem; outline:none; font-weight:300; min-width:200px; text-align:left; pointer-events:none;">
-            <h2 style="margin:0 0 10px 0;">PROJECT DESCRIPTION</h2>
-            <p style="margin:0;">This is a sample text block. Click EDIT to change content.</p>
-        </div>`;
-        createMiroItem(content, dx+'px', dy+'px', '400px');
+        if(!isAdmin) return;
+        const dx = (window.innerWidth/2 - panX)/zoom;
+        const dy = (window.innerHeight/2 - panY)/zoom;
+        const content = `
+            <div class="text-toolbar" onclick="event.stopPropagation()">
+                <button class="t-btn" onclick="execTextCommand('bold')">B</button>
+                <button class="t-btn" onclick="execTextCommand('italic')">I</button>
+                <div class="t-divider"></div>
+                <button class="t-btn" onclick="execTextCommand('justifyLeft')">L</button>
+                <button class="t-btn" onclick="execTextCommand('justifyCenter')">C</button>
+                <button class="t-btn" onclick="execTextCommand('justifyRight')">R</button>
+            </div>
+            <div class="editable-text" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; text-align:left; pointer-events:none;" onblur="saveToCloud()">
+                Double Click to Edit...
+            </div>`;
+        createMiroItem(content, dx+'px', dy+'px', '350px');
         saveHistory();
     }
 
@@ -368,9 +337,12 @@
                     if(img) img.style.opacity = "1";
                     el.classList.remove('cropping');
                 }
+                // 文字补丁：退出编辑模式
                 const textZone = el.querySelector('.editable-text');
-                if(textZone && el.classList.contains('editing')){
-                    exitTextEdit(el.querySelector('.done-btn'));
+                if(textZone){
+                    textZone.contentEditable = "false";
+                    textZone.style.pointerEvents = "none";
+                    el.classList.remove('editing');
                 }
             });
             saveToCloud();
@@ -552,7 +524,7 @@
     class Particle {
         constructor() { this.x = Math.random()*cvs.width; this.y = Math.random()*cvs.height; this.bs = Math.random()*2+2; this.s = this.bs; this.c = ['#4285F4','#34A853','#FBBC05','#EA4335','#9b59b6'][Math.floor(Math.random()*5)]; this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3}; this.st = 1; this.a = 0; }
         update() {
-            this.x += this.v.x; this.y += this.v.y; if(this.x<0||this.x>cvs.width) this.v.x*=-1; if(this.y<0||this.y>cvs.height) this.v.x*=-1;
+            this.x += this.v.x; this.y += this.v.y; if(this.x<0||this.x>cvs.width) this.v.x*=-1; if(this.y<0||this.y>cvs.height) this.v.y*=-1;
             let d = Math.hypot(m.smX-this.x, m.smY-this.y);
             if(d < 180) { let f = (180-d)/180; this.s = this.bs + f*25; this.st = 1 + (Math.hypot(m.vx, m.vy)*0.15*f); this.a = Math.atan2(m.vy, m.vx); }
             else { this.s += (this.bs-this.s)*0.1; this.st += (1-this.st)*0.1; }
