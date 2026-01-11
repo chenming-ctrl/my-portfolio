@@ -37,7 +37,14 @@
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
         .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
-        .miro-item.editing { z-index: 1001 !important; cursor: text; }
+        
+        /* --- UPDATED TEXT EDITING STYLES START --- */
+        .miro-item.editing { 
+            z-index: 2000 !important; 
+            border: 2px solid #4285F4; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15); 
+            cursor: text !important; 
+        }
         
         /* CROP FUNCTIONALITY CSS */
         .miro-item.cropping .crop-container { outline: 2px dashed #4285F4; cursor: move; }
@@ -70,10 +77,29 @@
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
 
-        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #eee; border-radius: 6px; display: none; gap: 4px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1002; }
-        .miro-item.selected .text-toolbar { display: flex; }
-        .t-btn { width: 30px; height: 30px; cursor: pointer; border: none; background: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: 0.2s; color: #666; font-weight: bold; }
-        .t-btn:hover { background: #f0f0f0; color: #000; }
+        /* --- TEXT TOOLBAR & EDITABLE STYLES --- */
+        .text-toolbar {
+            position: absolute;
+            top: -50px;
+            left: 0;
+            width: 100%;
+            background: #222;
+            border-radius: 6px;
+            display: none;
+            gap: 4px;
+            padding: 6px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            z-index: 2000;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .miro-item.editing .text-toolbar { display: flex; }
+        .t-btn { min-width: 28px; height: 28px; cursor: pointer; border: none; background: transparent; color: #fff; font-size: 12px; border-radius: 4px; transition: 0.2s; font-weight: bold; display: flex; align-items: center; justify-content: center; margin: 0 1px; }
+        .t-btn:hover { background: rgba(255,255,255,0.2); }
+        .t-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.3); margin: 0 4px; align-self: center;}
+        .t-btn.done-btn { background: #34A853; padding: 0 10px; margin-left: auto; }
+        
+        .editable-text { width: 100%; height: 100%; padding: 20px; box-sizing: border-box; font-size: 1rem; line-height: 1.5; outline: none; overflow-y: auto; color: #333; cursor: inherit; }
         
         #selection-box { position: fixed; border: 1px solid #4285F4; background: rgba(66, 133, 244, 0.1); z-index: 10000; pointer-events: none; display: none; }
     </style>
@@ -135,6 +161,27 @@
     let isSaving = false, savePending = false; 
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4'), sbox = document.getElementById('selection-box');
     const SNAP_THRESHOLD = 10, gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
+
+    // --- Helper Functions for Rich Text ---
+    function formatDoc(cmd, value = null) {
+        if(value) document.execCommand(cmd, false, value);
+        else document.execCommand(cmd);
+    }
+
+    function finishEditing() {
+        document.querySelectorAll('.miro-item.editing').forEach(el => {
+            const textZone = el.querySelector('.editable-text');
+            if(textZone) {
+                textZone.contentEditable = "false"; 
+                textZone.blur();
+            }
+            el.classList.remove('editing');
+            // Remove selection state to avoid confusion
+            el.classList.remove('selected');
+        });
+        saveToCloud();
+    }
+    // -------------------------------------
 
     async function initSystem() {
         const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
@@ -252,18 +299,19 @@
         }
     });
 
-    function setTextAlign(btn, align) {
-        const item = btn.closest('.miro-item');
-        const textEl = item.querySelector('.editable-text');
-        if (textEl) { textEl.style.textAlign = align; saveToCloud(); }
-    }
-
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
         d.innerHTML = `<div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div><div class="resize-handle"></div>`;
+        
+        // 1. UPDATED MOUSEDOWN: Block drag if editing
         d.onmousedown = (e) => {
-            if(!isAdmin || e.button !== 0 || d.classList.contains('editing')) return;
+            if(!isAdmin || e.button !== 0 || d.classList.contains('editing')) {
+                // Allow clicking inside editing text box to move cursor (stopPropagation), 
+                // but don't start dragging logic
+                if(d.classList.contains('editing')) e.stopPropagation();
+                return; 
+            }
             e.stopPropagation(); 
             if(!e.shiftKey && !d.classList.contains('selected')) {
                 document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
@@ -275,17 +323,22 @@
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
         
-        // UPDATED DOUBLE CLICK FOR CROP
+        // 2. UPDATED DOUBLE CLICK: Logic for Text Edit OR Image Crop
         d.ondblclick = (e) => {
             if(!isAdmin) return;
+            
+            // Text Editing Logic
             const textZone = d.querySelector('.editable-text');
             if(textZone) {
-                textZone.style.pointerEvents = "auto";
+                finishEditing(); // Close others
+                d.classList.add('editing');
                 textZone.contentEditable = "true";
                 textZone.focus();
-                d.classList.add('editing');
+                e.stopPropagation();
                 return;
             }
+            
+            // Image Cropping Logic (Legacy)
             const img = d.querySelector('img');
             if(img) {
                 if(!d.classList.contains('cropping')) {
@@ -307,26 +360,59 @@
         vp.appendChild(d); return d;
     }
 
+    // --- REPLACED addText Function ---
     function addText() {
-        const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
-        const content = `<div class="text-toolbar" onclick="event.stopPropagation()"><button class="t-btn" onclick="setTextAlign(this, 'left')">L</button><button class="t-btn" onclick="setTextAlign(this, 'center')">C</button><button class="t-btn" onclick="setTextAlign(this, 'right')">R</button><button class="t-btn" onclick="setTextAlign(this, 'justify')">J</button></div><div class="editable-text" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; text-align:left; pointer-events:none;">Double Click to Edit...</div>`;
-        createMiroItem(content, dx+'px', dy+'px', '300px');
+        const dx = (window.innerWidth/2 - panX)/zoom;
+        const dy = (window.innerHeight/2 - panY)/zoom;
+        
+        // Toolbar with onmousedown="event.preventDefault()" to prevent losing focus
+        const toolbarHTML = `
+        <div class="text-toolbar" onmousedown="event.preventDefault()">
+            <button class="t-btn" onclick="formatDoc('bold')">B</button>
+            <button class="t-btn" onclick="formatDoc('italic')">I</button>
+            <button class="t-btn" onclick="formatDoc('underline')">U</button>
+            <div class="t-sep"></div>
+            <button class="t-btn" onclick="formatDoc('justifyLeft')">L</button>
+            <button class="t-btn" onclick="formatDoc('justifyCenter')">C</button>
+            <button class="t-btn" onclick="formatDoc('justifyRight')">R</button>
+            <div class="t-sep"></div>
+            <button class="t-btn" onclick="formatDoc('formatBlock','H3')">H3</button>
+            <button class="t-btn" onclick="formatDoc('formatBlock','P')">P</button>
+            <button class="t-btn done-btn" onclick="finishEditing()">✔ DONE</button>
+        </div>`;
+
+        const content = `
+            ${toolbarHTML}
+            <div class="editable-text" contenteditable="false">
+                <b>New Text Block</b><br>Double click to edit content...
+            </div>`;
+            
+        const item = createMiroItem(content, dx+'px', dy+'px', '320px', 'auto');
+        
+        // Auto-enter edit mode
+        const textZone = item.querySelector('.editable-text');
+        if(textZone) {
+            item.classList.add('editing');
+            textZone.contentEditable = "true";
+            textZone.focus();
+            // Select all text
+            const range = document.createRange();
+            range.selectNodeContents(textZone);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
         saveHistory();
     }
 
     bd.ondblclick = (e) => {
         if (e.target === bd || e.target === vp) {
+            finishEditing(); // Ensure text saves
             document.querySelectorAll('.miro-item').forEach(el => {
                 if(el.classList.contains('cropping')){
                     const img = el.querySelector('img');
                     if(img) img.style.opacity = "1";
                     el.classList.remove('cropping');
-                }
-                const textZone = el.querySelector('.editable-text');
-                if(textZone){
-                    textZone.contentEditable = "false";
-                    textZone.style.pointerEvents = "none";
-                    el.classList.remove('editing');
                 }
             });
             saveToCloud();
@@ -380,6 +466,12 @@
     };
 
     bd.onmousedown = (e) => {
+        // --- Added: Click blank space to finish editing ---
+        if(e.target === bd || e.target === vp) {
+            finishEditing();
+        }
+        // --------------------------------------------------
+
         if(currentLvl === 4) {
             const isBlank = e.target === bd || e.target === vp;
             if (isBlank && e.button === 0 && isAdmin) {
@@ -457,7 +549,10 @@
     }
 
     window.addEventListener('keydown', (e) => {
-        if (e.target.isContentEditable || !isAdmin) return;
+        // Prevent deletion if user is typing in a contentEditable element
+        if (e.target.isContentEditable) return; 
+        
+        if (!isAdmin) return;
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
         if (e.key === 'Delete' || e.key === 'Backspace') {
             const sel = document.querySelectorAll('.miro-item.selected');
