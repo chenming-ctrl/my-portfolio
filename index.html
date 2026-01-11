@@ -35,34 +35,41 @@
         .view-layer.active { opacity: 1; visibility: visible; }
         #lvl4 { background: #fbfbfb; z-index: 6000; display: none; }
         #miro-viewport { position: absolute; width: 100%; height: 100%; transform-origin: 0 0; }
-        .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid transparent; user-select: none; }
-        .miro-item.selected { border: 1px solid #4285F4; z-index: 1000 !important; }
+        .miro-item { position: absolute; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 2px solid transparent; user-select: none; }
+        .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
+        .miro-item.editing { z-index: 1001 !important; cursor: text; }
         
-        /* --- NEW TEXT CARD UI START --- */
-        .card-header { position: absolute; top: 0; left: 0; width: 100%; height: 32px; background: #f8f9fa; border-bottom: 1px solid #eee; display: flex; justify-content: flex-end; align-items: center; padding: 0 10px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s; z-index: 10; }
-        .miro-item:hover .card-header { opacity: 1; }
-        .drag-handle { margin-right: auto; font-size: 9px; color: #999; letter-spacing: 1px; cursor: move; font-weight: bold; }
-        .edit-btn { font-size: 10px; font-weight: 600; color: #333; text-decoration: underline; cursor: pointer; text-transform: uppercase; margin-left: 10px; }
-        .close-btn { color: #EA4335; margin-left: 12px; cursor: pointer; font-weight: bold; font-size: 12px; }
-
-        .editor-toolbar { position: absolute; top: 0; left: 0; width: 100%; height: 40px; background: #fff; border-bottom: 1px solid #eee; display: none; align-items: center; padding: 0 10px; box-sizing: border-box; z-index: 20; }
-        .miro-item.editing .editor-toolbar { display: flex; }
-        .miro-item.editing .card-header { display: none !important; }
-        .miro-item.editing { border: 1px solid #000; cursor: default !important; z-index: 2000 !important; }
-        .tool-group { display: flex; gap: 8px; align-items: center; }
-        .style-btn { font-size: 14px; cursor: pointer; background: none; border: none; color: #666; padding: 2px 6px; border-radius: 4px; }
-        .style-btn:hover { background: #f0f0f0; color: #000; }
-        .done-btn { margin-left: auto; background: #000; color: #fff; border: none; padding: 5px 12px; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer; }
+        /* CROP FUNCTIONALITY CSS */
+        .miro-item.cropping .crop-container { outline: 2px dashed #4285F4; cursor: move; }
+        .miro-item.cropping img { pointer-events: auto !important; opacity: 0.6; }
         
-        .editable-text { margin-top: 32px; height: calc(100% - 32px); padding: 15px; overflow-y: auto; outline: none; box-sizing: border-box; font-size: 14px; line-height: 1.6; color: #333; }
-        .miro-item.editing .editable-text { margin-top: 40px; height: calc(100% - 40px); cursor: text; }
-        /* --- NEW TEXT CARD UI END --- */
-
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
+        /* TEXT EDITING ENHANCEMENTS */
+        .edit-trigger { position: absolute; top: 5px; right: 10px; font-size: 10px; color: #000; cursor: pointer; text-decoration: underline; display: none; z-index: 1002; font-weight: bold; }
+        .miro-item.selected:not(.editing) .edit-trigger { display: block; }
+        .text-edit-header { position: absolute; top: 0; left: 0; width: 100%; height: 35px; background: #f8f9fa; border-bottom: 1px solid #eee; display: none; align-items: center; justify-content: space-between; padding: 0 10px; box-sizing: border-box; z-index: 1005; }
+        .miro-item.editing .text-edit-header { display: flex; }
+        .done-btn { background: #000; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 10px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .toolbar-select { font-size: 10px; border: 1px solid #ddd; background: #fff; margin-right: 5px; outline: none; padding: 2px; }
+
+        .guide-line { position: fixed; background: #4285F4; pointer-events: none; z-index: 10000; display: none; opacity: 0.6; }
+        #guide-x { width: 1px; height: 100vh; top: 0; }
+        #guide-y { height: 1px; width: 100vw; left: 0; }
+        #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 240px; z-index: 9999; pointer-events: none; }
+        .upload-task { background: rgba(255, 255, 255, 0.95); border: 1px solid #eee; padding: 12px; margin-bottom: 10px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); pointer-events: auto; font-size: 10px; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .task-info { display: flex; justify-content: space-between; margin-bottom: 6px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+        .progress-bg { width: 100%; height: 3px; background: #f0f0f0; border-radius: 2px; overflow: hidden; }
+        .progress-fill { width: 0%; height: 100%; background: #4285F4; transition: width 0.2s ease; }
+        .task-status { margin-top: 4px; font-weight: bold; }
+        .task-status.success { color: #34A853; }
+        .task-status.error { color: #EA4335; }
+        .task-status.info { color: #4285F4; }
+
         .miro-ui { position: fixed; bottom: 80px; left: 60px; z-index: 9000; display: flex; align-items: center; gap: 15px; }
         .ui-btn { background: #fff; padding: 12px 24px; border-radius: 40px; font-size: 0.6rem; letter-spacing: 1px; cursor: pointer; border: 1px solid #eee; text-transform: uppercase; transition: 0.3s; }
         .back-btn-container { position: fixed; bottom: 30px; left: 60px; z-index: 7001; opacity: 0; transform: translateY(10px); transition: 0.5s ease; pointer-events: none; }
@@ -70,8 +77,8 @@
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; padding: 10px; }
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
+        
         #selection-box { position: fixed; border: 1px solid #4285F4; background: rgba(66, 133, 244, 0.1); z-index: 10000; pointer-events: none; display: none; }
-        #global-upload-list { position: fixed; bottom: 100px; right: 30px; width: 240px; z-index: 9999; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -83,6 +90,7 @@
 <nav id="mainNav"><div class="nav-logo" onclick="showLevel(1)">CHENMING</div><div id="dynamicNav" class="nav-links"></div></nav>
 <div id="backBtnContainer" class="back-btn-container">
     <div id="addProjBtn" class="back-btn" style="display:none; color: #34A853; margin-bottom:10px;" onclick="createNewProject()">+ NEW PROJECT</div>
+    <div id="restoreProjBtn" class="back-btn" style="display:none; color: #FBBC05; margin-bottom:10px;" onclick="showGlobalRestoreList()">↺ RESTORE PROJECT</div>
     <div class="back-btn" onclick="handleBack()">← BACK</div>
 </div>
 
@@ -94,12 +102,16 @@
         <div id="lvl4CatTag" style="font-size: 0.45rem; color: #ccc; letter-spacing: 4px; margin-bottom: 8px;">CATEGORY</div>
         <div id="lvl4Title" style="pointer-events: auto; outline:none; font-size: 1.5rem; font-weight: 200;" contenteditable="false" onblur="saveToCloud()">PROJECT TITLE</div>
     </div>
-    <div id="miro-viewport"></div>
+    <div id="miro-viewport">
+        <div id="guide-x" class="guide-line"></div>
+        <div id="guide-y" class="guide-line"></div>
+    </div>
     <div class="miro-ui" id="adminControls" style="display:none;">
         <button class="ui-btn" onclick="document.getElementById('fileInput').click()">+ MEDIA</button>
         <button class="ui-btn" onclick="addLink()">+ LINK</button>
         <button class="ui-btn" onclick="addText()">+ TEXT</button>
         <button class="ui-btn" id="manualSaveBtn" style="background: #000; color: #fff; border: none;" onclick="manualSaveWithBackup()">SAVE & BACKUP</button>
+        <button class="ui-btn" id="restoreBtn" style="border-color: #FBBC05; color: #FBBC05;" onclick="showRestoreList()">RESTORE</button>
     </div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
 </div>
@@ -107,7 +119,10 @@
 
 <script>
     const CONFIG = {
-        owner: 'chenming-ctrl', repo: 'my-portfolio-data', path: 'portfolio_data.json',
+        owner: 'chenming-ctrl', 
+        repo: 'my-portfolio-data', 
+        path: 'portfolio_data.json',
+        backupDir: 'backups',
         get token() { return (localStorage.getItem('gh_token') || '').trim(); }
     };
 
@@ -122,31 +137,7 @@
     let historyStack = [];
     let isSaving = false, savePending = false; 
     const vp = document.getElementById('miro-viewport'), bd = document.getElementById('lvl4'), sbox = document.getElementById('selection-box');
-
-    // --- NEW HELPER FUNCTIONS ---
-    function formatDoc(cmd, val=null) { document.execCommand(cmd, false, val); }
-    
-    function finishEditing() {
-        document.querySelectorAll('.miro-item.editing').forEach(el => {
-            const txt = el.querySelector('.editable-text');
-            if(txt) { txt.contentEditable = "false"; txt.blur(); }
-            el.classList.remove('editing');
-        });
-        saveToCloud();
-    }
-
-    function enterEditMode(btn) {
-        finishEditing();
-        const item = btn.closest('.miro-item');
-        item.classList.add('editing');
-        const txt = item.querySelector('.editable-text');
-        txt.contentEditable = "true";
-        txt.focus();
-    }
-
-    function deleteItem(btn) {
-        if(confirm("Delete this element?")) { btn.closest('.miro-item').remove(); saveToCloud(); }
-    }
+    const SNAP_THRESHOLD = 10, gx = document.getElementById('guide-x'), gy = document.getElementById('guide-y');
 
     async function initSystem() {
         const apiUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
@@ -169,11 +160,12 @@
         try {
             if(currentLvl === 4 && currentProj) {
                 const items = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({
-                    html: el.querySelector('.crop-container') ? el.querySelector('.crop-container').innerHTML : el.innerHTML, 
+                    html: el.querySelector('.crop-container').innerHTML, 
                     x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height
                 })); 
                 portfolio_data[currentProj.id].layout = items; 
                 portfolio_data[currentProj.id].title = document.getElementById('lvl4Title').innerText; 
+                portfolio_data[currentProj.id].thumbs = items.filter(it => it.html.includes('<img')).slice(0,3).map(it => it.html.match(/src="([^"]+)"/)?.[1]);
             }
             const url = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`; 
             const getSha = await fetch(`${url}?t=${Date.now()}`, { headers: {'Authorization': `token ${CONFIG.token}`} }); 
@@ -187,25 +179,138 @@
         if (savePending) { savePending = false; saveToCloud(); }
     }
 
+    async function smartCompress(file) {
+        const MAX_SIZE = 2 * 1024 * 1024;
+        if (!file.type.includes('image') || file.size <= MAX_SIZE) {
+            return new Promise(resolve => {
+                const r = new FileReader();
+                r.onload = e => resolve({ content: e.target.result.split(',')[1], isCompressed: false });
+                r.readAsDataURL(file);
+            });
+        }
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width, height = img.height;
+                    const maxDim = 2560;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) { height *= maxDim / width; width = maxDim; }
+                        else { width *= maxDim / height; height = maxDim; }
+                    }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    let quality = 0.92, base64 = "";
+                    const attempt = () => {
+                        base64 = canvas.toDataURL('image/jpeg', quality);
+                        const size = Math.round((base64.length - 81) * 0.75);
+                        if (size > MAX_SIZE && quality > 0.1) { quality -= 0.15; attempt(); }
+                        else { resolve({ content: base64.split(',')[1], isCompressed: true }); }
+                    };
+                    attempt();
+                };
+            };
+        });
+    }
+
+    async function handleUpload(e) {
+        if(!isAdmin || !currentProj) return;
+        const fs = Array.from(e.target.files), container = document.getElementById('global-upload-list');
+        const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
+        fs.forEach(async (file, idx) => {
+            const taskId = "t_" + Date.now() + "_" + idx;
+            container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>${file.name.substring(0, 12)}...</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status" style="display:none;"></div></div>`);
+            const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent');
+            const { content, isCompressed } = await smartCompress(file);
+            const previewSrc = isCompressed ? `data:image/jpeg;base64,${content}` : URL.createObjectURL(file);
+            const item = createMiroItem(file.type.includes('image') ? `<img src="${previewSrc}" style="opacity:0.5">` : `<video src="${previewSrc}" muted style="opacity:0.5"></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
+            xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
+            xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) { const p = Math.round((ev.loaded/ev.total)*100); fill.style.width = p+'%'; pText.innerText = p+'%'; } };
+            xhr.onload = () => {
+                if (xhr.status < 300) {
+                    const mEl = item.querySelector('img, video'); mEl.src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); mEl.style.opacity = "1";
+                    taskEl.querySelector('.task-status').innerText = "SUCCESS" + (isCompressed ? " (COMPRESSED)" : ""); taskEl.querySelector('.task-status').className = "task-status success"; taskEl.querySelector('.task-status').style.display = "block";
+                    saveToCloud(); setTimeout(() => taskEl.remove(), 3000);
+                } else { taskEl.querySelector('.task-status').innerText = "FAILED"; taskEl.querySelector('.task-status').className = "task-status error"; taskEl.querySelector('.task-status').style.display = "block"; }
+            };
+            xhr.send(JSON.stringify({message: `Upload ${isCompressed?'Compressed ':''}media`, content: content}));
+        });
+    }
+
+    window.addEventListener('paste', async (e) => {
+        if (!isAdmin || currentLvl !== 4) return;
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf("image") !== -1) {
+                const file = items[i].getAsFile();
+                handleUpload({ target: { files: [file] } });
+            }
+        }
+    });
+
+    function setTextAlign(btn, align) {
+        const item = btn.closest('.miro-item');
+        const textEl = item.querySelector('.editable-text');
+        if (textEl) { textEl.style.textAlign = align; saveToCloud(); }
+    }
+
+    // TEXT EDITING LOGIC
+    function enterTextEdit(btn) {
+        const item = btn.closest('.miro-item');
+        const textZone = item.querySelector('.editable-text');
+        item.classList.add('editing');
+        textZone.contentEditable = "true";
+        textZone.style.pointerEvents = "auto";
+        textZone.focus();
+        isDragging = false; 
+    }
+
+    function exitTextEdit(btn) {
+        const item = btn.closest('.miro-item');
+        const textZone = item.querySelector('.editable-text');
+        item.classList.remove('editing');
+        textZone.contentEditable = "false";
+        textZone.style.pointerEvents = "none";
+        saveToCloud();
+    }
+
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
-        
-        // 判断是否是文本卡片（带Header）还是普通媒体
-        if(content.includes('card-header')) {
-            d.innerHTML = content + `<div class="resize-handle"></div>`;
-        } else {
-            d.innerHTML = `<div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div><div class="resize-handle"></div>`;
-        }
-        
-        d.onmousedown = (e) => {
-            if(!isAdmin || d.classList.contains('editing')) { if(d.classList.contains('editing')) e.stopPropagation(); return; }
-            
-            // 文本卡片限制：必须点击把手才能移动
-            const isText = d.querySelector('.card-header');
-            const isHandle = e.target.classList.contains('drag-handle') || e.target.closest('.drag-handle');
-            if(isText && !isHandle) { e.stopPropagation(); return; }
+        const isText = content.includes('editable-text');
 
+        d.innerHTML = `
+            ${isText && isAdmin ? `
+                <div class="text-edit-header">
+                    <div class="format-controls">
+                        <select class="toolbar-select" onchange="document.execCommand('formatBlock', false, this.value)">
+                            <option value="P">Paragraph</option>
+                            <option value="H1">Heading 1</option>
+                            <option value="H2">Heading 2</option>
+                        </select>
+                        <select class="toolbar-select" onchange="document.execCommand('fontName', false, this.value)">
+                            <option value="Helvetica Neue">Helvetica</option>
+                            <option value="Georgia">Serif</option>
+                            <option value="Courier New">Mono</option>
+                        </select>
+                    </div>
+                    <button class="done-btn" onclick="exitTextEdit(this)">✓ 完成</button>
+                </div>
+                <div class="edit-trigger" onclick="enterTextEdit(this)">EDIT</div>
+            ` : ''}
+            <div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div>
+            <div class="resize-handle"></div>
+        `;
+
+        d.onmousedown = (e) => {
+            if(!isAdmin || e.button !== 0 || d.classList.contains('editing')) return;
             e.stopPropagation(); 
             if(!e.shiftKey && !d.classList.contains('selected')) {
                 document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
@@ -217,55 +322,66 @@
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
         
+        d.ondblclick = (e) => {
+            if(!isAdmin) return;
+            const textZone = d.querySelector('.editable-text');
+            if(textZone) {
+                enterTextEdit(d.querySelector('.edit-trigger'));
+                return;
+            }
+            const img = d.querySelector('img');
+            if(img) {
+                if(!d.classList.contains('cropping')) {
+                    d.classList.add('cropping');
+                    img.style.position = 'absolute';
+                    if(!img.style.left) img.style.left = '0px';
+                    if(!img.style.top) img.style.top = '0px';
+                    if(!img.style.width) img.style.width = '100%';
+                } else {
+                    d.classList.remove('cropping');
+                    img.style.opacity = "1";
+                    saveToCloud();
+                }
+            }
+        };
+        
         const rh = d.querySelector('.resize-handle');
-        if(rh) rh.onmousedown = (e) => { e.stopPropagation(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
+        rh.onmousedown = (e) => { e.stopPropagation(); isResizing = true; dragTarget = d; startW = parseInt(d.style.width); startX = e.clientX; };
         vp.appendChild(d); return d;
     }
 
     function addText() {
-        const dx = (window.innerWidth/2 - panX)/zoom;
-        const dy = (window.innerHeight/2 - panY)/zoom;
-        const content = `
-            <div class="card-header">
-                <div class="drag-handle">✥ DRAG</div>
-                <div class="edit-btn" onclick="enterEditMode(this)">EDIT</div>
-                <div class="close-btn" onclick="deleteItem(this)">✕</div>
-            </div>
-            <div class="editor-toolbar" onmousedown="event.preventDefault()">
-                <div class="tool-group">
-                    <button class="style-btn" onclick="formatDoc('bold')"><b>B</b></button>
-                    <button class="style-btn" onclick="formatDoc('italic')"><i>I</i></button>
-                    <button class="style-btn" onclick="formatDoc('formatBlock','H3')">H</button>
-                    <div style="width:1px;height:12px;background:#ddd"></div>
-                    <button class="style-btn" onclick="formatDoc('justifyLeft')">≡</button>
-                    <button class="style-btn" onclick="formatDoc('justifyCenter')">≛</button>
-                </div>
-                <button class="done-btn" onclick="finishEditing()">FINISH</button>
-            </div>
-            <div class="editable-text" contenteditable="false">New Text Block...</div>`;
-        const item = createMiroItem(content, dx+'px', dy+'px', '320px', '200px');
-        enterEditMode(item.querySelector('.edit-btn'));
+        const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
+        const content = `<div class="editable-text" style="padding:40px 20px 20px; font-size:1.1rem; outline:none; font-weight:300; min-width:200px; text-align:left; pointer-events:none;">
+            <h2 style="margin:0 0 10px 0;">PROJECT DESCRIPTION</h2>
+            <p style="margin:0;">This is a sample text block. Click EDIT to change content.</p>
+        </div>`;
+        createMiroItem(content, dx+'px', dy+'px', '400px');
+        saveHistory();
     }
 
-    bd.onmousedown = (e) => {
-        if(currentLvl === 4) {
-            const isBlank = e.target === bd || e.target === vp;
-            if(isBlank) finishEditing();
-            if (isBlank && e.button === 0 && isAdmin) {
-                isSelecting = true; startX = e.clientX; startY = e.clientY;
-                sbox.style.cssText = `display:block; left:${startX}px; top:${startY}px; width:0; height:0;`;
-                document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
-                selectedItems = [];
-            } else if (e.button === 1 || (isBlank && e.button === 0 && !isAdmin)) {
-                isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY;
-            }
+    bd.ondblclick = (e) => {
+        if (e.target === bd || e.target === vp) {
+            document.querySelectorAll('.miro-item').forEach(el => {
+                if(el.classList.contains('cropping')){
+                    const img = el.querySelector('img');
+                    if(img) img.style.opacity = "1";
+                    el.classList.remove('cropping');
+                }
+                const textZone = el.querySelector('.editable-text');
+                if(textZone && el.classList.contains('editing')){
+                    exitTextEdit(el.querySelector('.done-btn'));
+                }
+            });
+            saveToCloud();
         }
     };
 
     window.onmousemove = (e) => {
         if(isSelecting) {
             const curX = e.clientX, curY = e.clientY;
-            const l = Math.min(startX, curX), t = Math.min(startY, curY), w = Math.abs(curX - startX), h = Math.abs(curY - startY);
+            const l = Math.min(startX, curX), t = Math.min(startY, curY);
+            const w = Math.abs(curX - startX), h = Math.abs(curY - startY);
             sbox.style.left = l + 'px'; sbox.style.top = t + 'px'; sbox.style.width = w + 'px'; sbox.style.height = h + 'px';
             document.querySelectorAll('.miro-item').forEach(item => {
                 const r = item.getBoundingClientRect();
@@ -274,18 +390,124 @@
             });
         }
         else if(isPanning) { panX = e.clientX - startX; panY = e.clientY - startY; updateViewport(); }
-        else if(isDragging && dragTarget) {
-            let nX = (e.clientX/zoom) - startX, nY = (e.clientY/zoom) - startY;
-            const diffX = nX - parseInt(dragTarget.style.left), diffY = nY - parseInt(dragTarget.style.top);
-            if (selectedItems.includes(dragTarget)) {
-                selectedItems.forEach(el => { el.style.left = (parseInt(el.style.left) + diffX) + "px"; el.style.top = (parseInt(el.style.top) + diffY) + "px"; });
-            } else { dragTarget.style.left = nX + "px"; dragTarget.style.top = nY + "px"; }
+        else if(isDragging && dragTarget && !isResizing) {
+            if(dragTarget.classList.contains('cropping')){
+                const img = dragTarget.querySelector('img');
+                img.style.left = (parseInt(img.style.left || 0) + (e.movementX/zoom)) + "px";
+                img.style.top = (parseInt(img.style.top || 0) + (e.movementY/zoom)) + "px";
+            } else {
+                let nX = (e.clientX/zoom) - startX, nY = (e.clientY/zoom) - startY;
+                const diffX = nX - parseInt(dragTarget.style.left), diffY = nY - parseInt(dragTarget.style.top);
+                if (selectedItems.length > 1 && selectedItems.includes(dragTarget)) {
+                    selectedItems.forEach(el => {
+                        el.style.left = (parseInt(el.style.left) + diffX) + "px";
+                        el.style.top = (parseInt(el.style.top) + diffY) + "px";
+                    });
+                } else {
+                    dragTarget.style.left = nX + "px"; dragTarget.style.top = nY + "px";
+                }
+            }
         } else if(isResizing && dragTarget) { 
-            dragTarget.style.width = Math.max(50, startW + (e.clientX - startX)/zoom) + "px"; 
+            const newW = Math.max(50, startW + (e.clientX - startX)/zoom);
+            if(selectedItems.length > 1 && selectedItems.includes(dragTarget)) {
+                const ratio = newW / parseInt(dragTarget.style.width);
+                selectedItems.forEach(el => { el.style.width = (parseInt(el.style.width) * ratio) + "px"; });
+            } else { dragTarget.style.width = newW + "px"; }
         }
     };
 
-    window.onmouseup = () => { if(isSelecting) { selectedItems = Array.from(document.querySelectorAll('.miro-item.selected')); sbox.style.display = 'none'; } if(isDragging || isResizing) saveToCloud(); isDragging = isResizing = isPanning = isSelecting = false; };
+    window.onmouseup = () => {
+        if(isSelecting) { selectedItems = Array.from(document.querySelectorAll('.miro-item.selected')); sbox.style.display = 'none'; }
+        if(isDragging || isResizing) { saveHistory(); saveToCloud(); }
+        isDragging = isResizing = isPanning = isSelecting = false; gx.style.display = gy.style.display = 'none';
+    };
+
+    bd.onmousedown = (e) => {
+        if(currentLvl === 4) {
+            const isBlank = e.target === bd || e.target === vp;
+            if (isBlank && e.button === 0 && isAdmin) {
+                isSelecting = true; startX = e.clientX; startY = e.clientY;
+                sbox.style.cssText = `display:block; left:${startX}px; top:${startY}px; width:0; height:0;`;
+                document.querySelectorAll('.miro-item').forEach(el => el.classList.remove('selected'));
+                selectedItems = [];
+            } else if (e.button === 1 || (isBlank && e.button === 0 && !isAdmin)) {
+                isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY;
+            }
+            e.preventDefault();
+        }
+    };
+
+    async function runAutoBackup(reason = "Auto") {
+        if (!isAdmin || !CONFIG.token || !currentProj) return;
+        const container = document.getElementById('global-upload-list');
+        const taskId = "backup_" + Date.now();
+        const currentTitle = document.getElementById('lvl4Title').innerText.trim();
+        const projName = (currentTitle || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+        container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>BACKUP: ${projName.substring(0,10)}</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status info">INITIALIZING...</div></div>`);
+        const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent'), sText = taskEl.querySelector('.task-status');
+        const updateUI = (p, s) => { fill.style.width = p + '%'; pText.innerText = p + '%'; sText.innerText = s; };
+        try {
+            const headers = { 'Authorization': `token ${CONFIG.token}` };
+            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
+            updateUI(20, "SCANNING REPOSITORY...");
+            const res = await fetch(listUrl, { headers });
+            let nextNum = 1;
+            if (res.ok) {
+                const files = await res.json();
+                const pFiles = files.filter(f => f.name.startsWith(`${currentCat[0].toUpperCase()}_${projName}_`)).sort((a,b)=>b.name.localeCompare(a.name));
+                if (pFiles.length >= 5) {
+                    updateUI(40, `CLEANING OLD BACKUPS...`);
+                    for (let f of pFiles.slice(4)) { await fetch(`${listUrl}/${f.name}`, { method: 'DELETE', headers, body: JSON.stringify({ message: "Roll", sha: f.sha }) }); }
+                }
+                if (pFiles.length > 0) nextNum = (parseInt(pFiles[0].name.split('_').pop()) || 0) + 1;
+            }
+            updateUI(70, "COMPRESSING DATA...");
+            const now = new Date(), bbb = now.toISOString().split('T')[0].replace(/-/g, ''), ccc = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
+            const fileName = `${currentCat[0].toUpperCase()}_${projName}_${bbb}_${ccc}_${nextNum.toString().padStart(2,'0')}.json`;
+            updateUI(90, "UPLOADING TO CLOUD...");
+            const upRes = await fetch(`${listUrl}/${fileName}`, { method: 'PUT', headers, body: JSON.stringify({ message: `Backup: ${projName}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) }) });
+            if (upRes.ok) { updateUI(100, "SUCCESSFULLY BACKED UP"); sText.className = "task-status success"; setTimeout(() => taskEl.remove(), 4000); }
+            else throw new Error();
+        } catch (e) { updateUI(100, "BACKUP ERROR"); sText.className = "task-status error"; }
+    }
+
+    function autoFitView() {
+        const items = Array.from(vp.querySelectorAll('.miro-item'));
+        if (items.length === 0) { zoom = 1; panX = 0; panY = 0; updateViewport(); return; }
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        items.forEach(el => {
+            const x = parseInt(el.style.left), y = parseInt(el.style.top), w = parseInt(el.style.width), h = el.offsetHeight || 200;
+            minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+        });
+        const cW = maxX - minX, cH = maxY - minY, pad = 120;
+        zoom = Math.min((window.innerWidth - pad)/cW, (window.innerHeight - pad)/cH, 1.1);
+        zoom = Math.max(zoom, 0.15);
+        panX = (window.innerWidth/2) - (minX + cW/2)*zoom; panY = (window.innerHeight/2) - (minY + cH/2)*zoom;
+        updateViewport();
+    }
+
+    function saveHistory() {
+        const state = Array.from(vp.children).filter(el => el.classList.contains('miro-item')).map(el => ({ html: el.querySelector('.crop-container').innerHTML, x: el.style.left, y: el.style.top, w: el.style.width, h: el.style.height }));
+        historyStack.push(JSON.stringify(state)); if(historyStack.length > 30) historyStack.shift();
+    }
+
+    function undo() {
+        if(!isAdmin || historyStack.length <= 1) return; historyStack.pop();
+        const prevState = JSON.parse(historyStack[historyStack.length - 1]);
+        Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
+        prevState.forEach(it => createMiroItem(it.html, it.x, it.y, it.w, it.h));
+        saveToCloud();
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.target.isContentEditable || !isAdmin) return;
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            const sel = document.querySelectorAll('.miro-item.selected');
+            if (sel.length > 0) { e.preventDefault(); if(confirm(`Delete ${sel.length} items?`)) { sel.forEach(el => el.remove()); saveHistory(); saveToCloud(); } }
+        }
+    });
+
     bd.addEventListener('wheel', e => { if(currentLvl === 4) { e.preventDefault(); const f = Math.pow(1.1, -e.deltaY/120); const nz = Math.min(Math.max(zoom * f, 0.05), 5); panX = e.clientX - (e.clientX - panX) * (nz/zoom); panY = e.clientY - (e.clientY - panY) * (nz/zoom); zoom = nz; updateViewport(); } }, {passive:false});
     function updateViewport() { vp.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; }
 
@@ -295,42 +517,61 @@
         document.getElementById('lvl4').style.display=(lvl===4)?'flex':'none'; 
         if(lvl===2)renderCatGrid(); if(lvl===3)renderProjGrid(); 
         if(lvl===4){
-            vp.innerHTML = '';
+            Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
             const p = portfolio_data[currentProj.id];
             (p.layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); 
             document.getElementById('lvl4Title').innerText=p.title; 
             document.getElementById('lvl4Title').contentEditable = isAdmin;
             document.getElementById('lvl4CatTag').innerText=currentCat;
             document.getElementById('adminControls').style.display = isAdmin ? 'flex' : 'none';
+            setTimeout(autoFitView, 100);
         }
         document.getElementById('lvl'+lvl).classList.add('active'); 
         document.documentElement.style.setProperty('--bg-blur', [0,15,30,0][lvl-1]+'px'); 
         document.getElementById('mainNav').classList.toggle('visible', lvl>1); 
         document.getElementById('backBtnContainer').classList.toggle('show', lvl>1); 
-        document.getElementById('addProjBtn').style.display=(lvl===3 && isAdmin)?'block':'none';
+        const isL3A = (lvl===3 && isAdmin);
+        document.getElementById('addProjBtn').style.display=isL3A?'block':'none';
+        document.getElementById('restoreProjBtn').style.display=isL3A?'block':'none';
     }
 
-    // 基础功能
-    async function manualSaveWithBackup() { await saveToCloud(); alert("Saved!"); }
-    function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?getAssetUrl(portfolio_data[ps[0]].thumbs[0]):''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
-    function renderProjGrid() { const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); document.getElementById('projGrid').innerHTML=ps.map(p=>`<div class="stack-container" onclick="openProject('${p.id}')"><div class="neural-stack"><div class="neural-layer layer-1"></div></div><div class="stack-label">${p.title}</div></div>`).join(''); }
-    function createNewProject() { const title = prompt("Title:"); if(!title) return; const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = { title, layout: [], thumbs: [] }; saveToCloud().then(() => renderProjGrid()); }
-    function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
-    function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
-    function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t){localStorage.setItem('gh_token', t.trim()); isAdmin=true; location.reload();}}}
-    
-    // 背景粒子
+    async function manualSaveWithBackup() {
+        const btn = document.getElementById('manualSaveBtn');
+        try {
+            btn.innerText = "SAVING JSON..."; btn.style.background = "#4285F4";
+            await saveToCloud();
+            await runAutoBackup("Manual");
+            btn.innerText = "ALL SYNCED"; btn.style.background = "#34A853";
+            setTimeout(() => { btn.innerText = "SAVE & BACKUP"; btn.style.background = "#000"; }, 3000);
+        } catch (e) { btn.innerText = "SYNC FAILED"; btn.style.background = "#EA4335"; }
+    }
+
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
-    let pts = [], m = { x: 0, y: 0 };
+    let pts = [], m = { x: 0, y: 0, smX: 0, smY: 0, vx: 0, vy: 0 };
     window.addEventListener('mousemove', ev => { m.x = ev.clientX; m.y = ev.clientY; });
     class Particle {
-        constructor() { this.x = Math.random()*cvs.width; this.y = Math.random()*cvs.height; this.v = {x:(Math.random()-0.5)*0.5, y:(Math.random()-0.5)*0.5}; }
-        update() { this.x+=this.v.x; this.y+=this.v.y; if(this.x<0||this.x>cvs.width)this.v.x*=-1; if(this.y<0||this.y>cvs.height)this.v.y*=-1; ctx.beginPath(); ctx.arc(this.x,this.y,2,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.1)'; ctx.fill(); }
+        constructor() { this.x = Math.random()*cvs.width; this.y = Math.random()*cvs.height; this.bs = Math.random()*2+2; this.s = this.bs; this.c = ['#4285F4','#34A853','#FBBC05','#EA4335','#9b59b6'][Math.floor(Math.random()*5)]; this.v = {x:(Math.random()-0.5)*0.3, y:(Math.random()-0.5)*0.3}; this.st = 1; this.a = 0; }
+        update() {
+            this.x += this.v.x; this.y += this.v.y; if(this.x<0||this.x>cvs.width) this.v.x*=-1; if(this.y<0||this.y>cvs.height) this.v.x*=-1;
+            let d = Math.hypot(m.smX-this.x, m.smY-this.y);
+            if(d < 180) { let f = (180-d)/180; this.s = this.bs + f*25; this.st = 1 + (Math.hypot(m.vx, m.vy)*0.15*f); this.a = Math.atan2(m.vy, m.vx); }
+            else { this.s += (this.bs-this.s)*0.1; this.st += (1-this.st)*0.1; }
+            ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.a); ctx.beginPath(); ctx.ellipse(0, 0, this.s*this.st, this.s, 0, 0, Math.PI*2); ctx.fillStyle = this.c; ctx.globalAlpha = (currentLvl > 1) ? 0.2 : 0.45; ctx.fill(); ctx.restore();
+        }
     }
-    function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:50},()=>new Particle()); }
-    function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
-    
+
+    function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
+    function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?getAssetUrl(portfolio_data[ps[0]].thumbs[0]):''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
+    function renderProjGrid() { const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); document.getElementById('projGrid').innerHTML=ps.map(p=>{const t=(p.thumbs||[]).map(url => getAssetUrl(url)); const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : ''; return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;}).join(''); }
+    function createNewProject() { const title = prompt("Title:"); if(!title) return; const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = { title, layout: [], thumbs: [] }; saveToCloud().then(() => renderProjGrid()); }
+    async function deleteProject(id, title) { if (prompt(`Delete [ ${title} ]? Type name:`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); } }
+    function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
+    function handleBack() { if (currentLvl === 4) { if(isAdmin) runAutoBackup("BackBtn"); showLevel(3); } else if (currentLvl === 3) showLevel(2); else showLevel(1); }
+    function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
+    function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
+    function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
     window.onload = () => { if(CONFIG.token) { isAdmin = true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; } initParticles(); animate(); initSystem(); };
+    window.onresize = () => { cvs.width=window.innerWidth; cvs.height=window.innerHeight; };
     document.getElementById('dynamicNav').innerHTML=['Architecture','Computational','Interest','Photo','Ongoing'].map(c=>`<a onclick="showLevel(3, '${c}')">${c}</a>`).join('');
 </script>
 </body>
