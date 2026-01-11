@@ -39,14 +39,22 @@
         .miro-item.selected { border: 2px solid #4285F4; z-index: 1000 !important; }
         .miro-item.editing { z-index: 1001 !important; cursor: text; }
         
+        /* CROP & TEXT UI */
         .miro-item.cropping .crop-container { outline: 2px dashed #4285F4; cursor: move; }
         .miro-item.cropping img { pointer-events: auto !important; opacity: 0.6; }
-        
         .crop-container { width: 100%; height: 100%; overflow: hidden; position: relative; }
         .miro-item img, .miro-item video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         .resize-handle { position: absolute; width: 12px; height: 12px; background: #4285F4; right: -6px; bottom: -6px; cursor: nwse-resize; display: none; z-index: 1001; border-radius: 50%; }
         .miro-item.selected .resize-handle { display: flex; }
         
+        /* TEXT TOOLBAR */
+        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #eee; border-radius: 8px; display: none; gap: 4px; padding: 5px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 1002; white-space: nowrap; }
+        .miro-item.selected.editing .text-toolbar { display: flex; }
+        .t-btn { width: 32px; height: 32px; cursor: pointer; border: none; background: #fff; font-size: 11px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: 0.2s; color: #555; font-weight: bold; }
+        .t-btn:hover { background: #f0f0f0; color: #000; }
+        .t-btn.active { background: #eef4ff; color: #4285F4; }
+        .t-divider { width: 1px; height: 20px; background: #eee; margin: 0 2px; }
+
         .guide-line { position: fixed; background: #4285F4; pointer-events: none; z-index: 10000; display: none; opacity: 0.6; }
         #guide-x { width: 1px; height: 100vh; top: 0; }
         #guide-y { height: 1px; width: 100vw; left: 0; }
@@ -68,14 +76,6 @@
         .back-btn { font-size: 0.55rem; letter-spacing: 3px; color: #999; cursor: pointer; text-transform: uppercase; padding: 10px; }
         #loading-screen { position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .admin-lock { position: fixed; bottom: 30px; right: 60px; font-size: 0.45rem; color: #ccc; cursor: pointer; z-index: 8000; letter-spacing: 2px; }
-
-        /* 文字补丁增强样式 */
-        .text-toolbar { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #eee; border-radius: 6px; display: none; gap: 4px; padding: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1002; align-items: center; }
-        .miro-item.selected .text-toolbar { display: flex; }
-        .t-btn { width: 28px; height: 28px; cursor: pointer; border: none; background: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: 0.2s; color: #666; font-weight: bold; }
-        .t-btn:hover { background: #f0f0f0; color: #000; }
-        .t-divider { width: 1px; height: 15px; background: #eee; margin: 0 2px; }
-        
         #selection-box { position: fixed; border: 1px solid #4285F4; background: rgba(66, 133, 244, 0.1); z-index: 10000; pointer-events: none; display: none; }
     </style>
 </head>
@@ -109,7 +109,6 @@
         <button class="ui-btn" onclick="addLink()">+ LINK</button>
         <button class="ui-btn" onclick="addText()">+ TEXT</button>
         <button class="ui-btn" id="manualSaveBtn" style="background: #000; color: #fff; border: none;" onclick="manualSaveWithBackup()">SAVE & BACKUP</button>
-        <button class="ui-btn" id="restoreBtn" style="border-color: #FBBC05; color: #FBBC05;" onclick="showRestoreList()">RESTORE</button>
     </div>
     <input type="file" id="fileInput" hidden multiple onchange="handleUpload(event)">
 </div>
@@ -177,92 +176,45 @@
         if (savePending) { savePending = false; saveToCloud(); }
     }
 
-    async function smartCompress(file) {
-        const MAX_SIZE = 2 * 1024 * 1024;
-        if (!file.type.includes('image') || file.size <= MAX_SIZE) {
-            return new Promise(resolve => {
-                const r = new FileReader();
-                r.onload = e => resolve({ content: e.target.result.split(',')[1], isCompressed: false });
-                r.readAsDataURL(file);
-            });
-        }
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (e) => {
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width, height = img.height;
-                    const maxDim = 2560;
-                    if (width > maxDim || height > maxDim) {
-                        if (width > height) { height *= maxDim / width; width = maxDim; }
-                        else { width *= maxDim / height; height = maxDim; }
-                    }
-                    canvas.width = width; canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    let quality = 0.92, base64 = "";
-                    const attempt = () => {
-                        base64 = canvas.toDataURL('image/jpeg', quality);
-                        const size = Math.round((base64.length - 81) * 0.75);
-                        if (size > MAX_SIZE && quality > 0.1) { quality -= 0.15; attempt(); }
-                        else { resolve({ content: base64.split(',')[1], isCompressed: true }); }
-                    };
-                    attempt();
-                };
-            };
-        });
-    }
-
-    async function handleUpload(event) {
+    async function handleUpload(e) {
         if(!isAdmin || !currentProj) return;
-        const fs = Array.from(event.target.files), container = document.getElementById('global-upload-list');
+        const fs = Array.from(e.target.files), container = document.getElementById('global-upload-list');
         const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         fs.forEach(async (file, idx) => {
             const taskId = "t_" + Date.now() + "_" + idx;
             container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>${file.name.substring(0, 12)}...</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status" style="display:none;"></div></div>`);
             const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent');
-            const { content, isCompressed } = await smartCompress(file);
-            const previewSrc = isCompressed ? `data:image/jpeg;base64,${content}` : URL.createObjectURL(file);
-            const item = createMiroItem(file.type.includes('image') ? `<img src="${previewSrc}" style="opacity:0.5">` : `<video src="${previewSrc}" muted style="opacity:0.5"></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
-            const xhr = new XMLHttpRequest();
-            xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
-            xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
-            xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) { const p = Math.round((ev.loaded/ev.total)*100); fill.style.width = p+'%'; pText.innerText = p+'%'; } };
-            xhr.onload = () => {
-                if (xhr.status < 300) {
-                    const mEl = item.querySelector('img, video'); mEl.src = getAssetUrl(JSON.parse(xhr.responseText).content.download_url); mEl.style.opacity = "1";
-                    taskEl.querySelector('.task-status').innerText = "SUCCESS" + (isCompressed ? " (COMPRESSED)" : ""); taskEl.querySelector('.task-status').className = "task-status success"; taskEl.querySelector('.task-status').style.display = "block";
-                    saveToCloud(); setTimeout(() => taskEl.remove(), 3000);
-                } else { taskEl.querySelector('.task-status').innerText = "FAILED"; taskEl.querySelector('.task-status').className = "task-status error"; taskEl.querySelector('.task-status').style.display = "block"; }
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result.split(',')[1];
+                const xhr = new XMLHttpRequest();
+                xhr.open('PUT', `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/media/${Date.now()}_${file.name}`);
+                xhr.setRequestHeader('Authorization', `token ${CONFIG.token}`);
+                xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) { const p = Math.round((ev.loaded/ev.total)*100); fill.style.width = p+'%'; pText.innerText = p+'%'; } };
+                xhr.onload = () => {
+                    if (xhr.status < 300) {
+                        const rawUrl = JSON.parse(xhr.responseText).content.download_url;
+                        createMiroItem(file.type.includes('image') ? `<img src="${getAssetUrl(rawUrl)}">` : `<video src="${getAssetUrl(rawUrl)}" controls></video>`, (dx+idx*30)+'px', (dy+idx*30)+'px');
+                        taskEl.querySelector('.task-status').innerText = "SUCCESS"; taskEl.querySelector('.task-status').className = "task-status success"; taskEl.querySelector('.task-status').style.display = "block";
+                        saveToCloud(); setTimeout(() => taskEl.remove(), 3000);
+                    }
+                };
+                xhr.send(JSON.stringify({message: "Upload media", content: content}));
             };
-            xhr.send(JSON.stringify({message: `Upload ${isCompressed?'Compressed ':''}media`, content: content}));
+            reader.readAsDataURL(file);
         });
     }
 
-    window.addEventListener('paste', async (e) => {
-        if (!isAdmin || currentLvl !== 4) return;
-        const items = e.clipboardData.items;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf("image") !== -1) {
-                const file = items[i].getAsFile();
-                handleUpload({ target: { files: [file] } });
-            }
-        }
-    });
-
-    // 文字补丁：富文本命令
-    function execTextCommand(command) {
-        document.execCommand(command, false, null);
+    function execFormat(cmd, val = null) {
+        document.execCommand(cmd, false, val);
         saveToCloud();
     }
 
     function createMiroItem(content, x, y, w = "300px", h = "auto") {
         const d = document.createElement('div');
         d.className = 'miro-item'; d.style.cssText = `left:${x}; top:${y}; width:${w}; height:${h};`;
-        d.innerHTML = `<div class="crop-container">${content.replace(/src="([^"]+)"/g, (m, p1) => `src="${getAssetUrl(p1)}"`)}</div><div class="resize-handle"></div>`;
+        d.innerHTML = `<div class="crop-container">${content}</div><div class="resize-handle"></div>`;
+        
         d.onmousedown = (e) => {
             if(!isAdmin || e.button !== 0 || d.classList.contains('editing')) return;
             e.stopPropagation(); 
@@ -276,7 +228,6 @@
             startX = (e.clientX/zoom) - parseInt(d.style.left); startY = (e.clientY/zoom) - parseInt(d.style.top);
         };
         
-        // 文字补丁逻辑整合：双击区分文字与裁剪
         d.ondblclick = (e) => {
             if(!isAdmin) return;
             const textZone = d.querySelector('.editable-text');
@@ -284,21 +235,17 @@
                 textZone.style.pointerEvents = "auto";
                 textZone.contentEditable = "true";
                 textZone.focus();
-                d.classList.add('editing'); // 锁定拖拽，允许选中文本
-                return;
-            }
-            const img = d.querySelector('img');
-            if(img) {
-                if(!d.classList.contains('cropping')) {
-                    d.classList.add('cropping');
-                    img.style.position = 'absolute';
-                    if(!img.style.left) img.style.left = '0px';
-                    if(!img.style.top) img.style.top = '0px';
-                    if(!img.style.width) img.style.width = '100%';
-                } else {
-                    d.classList.remove('cropping');
-                    img.style.opacity = "1";
-                    saveToCloud();
+                d.classList.add('editing');
+            } else {
+                const img = d.querySelector('img');
+                if(img) {
+                    if(!d.classList.contains('cropping')) {
+                        d.classList.add('cropping');
+                        img.style.position = 'absolute';
+                    } else {
+                        d.classList.remove('cropping');
+                        saveToCloud();
+                    }
                 }
             }
         };
@@ -308,42 +255,28 @@
         vp.appendChild(d); return d;
     }
 
-    // 文字补丁：增强版文字卡片添加
     function addText() {
-        if(!isAdmin) return;
-        const dx = (window.innerWidth/2 - panX)/zoom;
-        const dy = (window.innerHeight/2 - panY)/zoom;
+        const dx = (window.innerWidth/2 - panX)/zoom, dy = (window.innerHeight/2 - panY)/zoom;
         const content = `
             <div class="text-toolbar" onclick="event.stopPropagation()">
-                <button class="t-btn" onclick="execTextCommand('bold')">B</button>
-                <button class="t-btn" onclick="execTextCommand('italic')">I</button>
+                <button class="t-btn" onclick="execFormat('bold')">B</button>
+                <button class="t-btn" onclick="execFormat('italic')">I</button>
                 <div class="t-divider"></div>
-                <button class="t-btn" onclick="execTextCommand('justifyLeft')">L</button>
-                <button class="t-btn" onclick="execTextCommand('justifyCenter')">C</button>
-                <button class="t-btn" onclick="execTextCommand('justifyRight')">R</button>
+                <button class="t-btn" onclick="execFormat('justifyLeft')">L</button>
+                <button class="t-btn" onclick="execFormat('justifyCenter')">C</button>
+                <button class="t-btn" onclick="execFormat('justifyRight')">R</button>
             </div>
-            <div class="editable-text" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; text-align:left; pointer-events:none;" onblur="saveToCloud()">
-                Double Click to Edit...
-            </div>`;
-        createMiroItem(content, dx+'px', dy+'px', '350px');
+            <div class="editable-text" style="padding:20px; font-size:1.1rem; outline:none; font-weight:300; min-width:150px; pointer-events:none;">New Text Box...</div>`;
+        createMiroItem(content, dx+'px', dy+'px', '320px');
         saveHistory();
     }
 
     bd.ondblclick = (e) => {
         if (e.target === bd || e.target === vp) {
             document.querySelectorAll('.miro-item').forEach(el => {
-                if(el.classList.contains('cropping')){
-                    const img = el.querySelector('img');
-                    if(img) img.style.opacity = "1";
-                    el.classList.remove('cropping');
-                }
-                // 文字补丁：退出编辑模式
-                const textZone = el.querySelector('.editable-text');
-                if(textZone){
-                    textZone.contentEditable = "false";
-                    textZone.style.pointerEvents = "none";
-                    el.classList.remove('editing');
-                }
+                el.classList.remove('cropping', 'editing');
+                const t = el.querySelector('.editable-text');
+                if(t) { t.contentEditable = "false"; t.style.pointerEvents = "none"; }
             });
             saveToCloud();
         }
@@ -381,17 +314,14 @@
             }
         } else if(isResizing && dragTarget) { 
             const newW = Math.max(50, startW + (e.clientX - startX)/zoom);
-            if(selectedItems.length > 1 && selectedItems.includes(dragTarget)) {
-                const ratio = newW / parseInt(dragTarget.style.width);
-                selectedItems.forEach(el => { el.style.width = (parseInt(el.style.width) * ratio) + "px"; });
-            } else { dragTarget.style.width = newW + "px"; }
+            dragTarget.style.width = newW + "px";
         }
     };
 
     window.onmouseup = () => {
         if(isSelecting) { selectedItems = Array.from(document.querySelectorAll('.miro-item.selected')); sbox.style.display = 'none'; }
         if(isDragging || isResizing) { saveHistory(); saveToCloud(); }
-        isDragging = isResizing = isPanning = isSelecting = false; gx.style.display = gy.style.display = 'none';
+        isDragging = isResizing = isPanning = isSelecting = false;
     };
 
     bd.onmousedown = (e) => {
@@ -405,43 +335,8 @@
             } else if (e.button === 1 || (isBlank && e.button === 0 && !isAdmin)) {
                 isPanning = true; startX = e.clientX - panX; startY = e.clientY - panY;
             }
-            e.preventDefault();
         }
     };
-
-    async function runAutoBackup(reason = "Auto") {
-        if (!isAdmin || !CONFIG.token || !currentProj) return;
-        const container = document.getElementById('global-upload-list');
-        const taskId = "backup_" + Date.now();
-        const currentTitle = document.getElementById('lvl4Title').innerText.trim();
-        const projName = (currentTitle || "Untitled").replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
-        container.insertAdjacentHTML('beforeend', `<div class="upload-task" id="${taskId}"><div class="task-info"><span>BACKUP: ${projName.substring(0,10)}</span><span class="percent">0%</span></div><div class="progress-bg"><div class="progress-fill"></div></div><div class="task-status info">INITIALIZING...</div></div>`);
-        const taskEl = document.getElementById(taskId), fill = taskEl.querySelector('.progress-fill'), pText = taskEl.querySelector('.percent'), sText = taskEl.querySelector('.task-status');
-        const updateUI = (p, s) => { fill.style.width = p + '%'; pText.innerText = p + '%'; sText.innerText = s; };
-        try {
-            const headers = { 'Authorization': `token ${CONFIG.token}` };
-            const listUrl = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.backupDir}`;
-            updateUI(20, "SCANNING REPOSITORY...");
-            const res = await fetch(listUrl, { headers });
-            let nextNum = 1;
-            if (res.ok) {
-                const files = await res.json();
-                const pFiles = files.filter(f => f.name.startsWith(`${currentCat[0].toUpperCase()}_${projName}_`)).sort((a,b)=>b.name.localeCompare(a.name));
-                if (pFiles.length >= 5) {
-                    updateUI(40, `CLEANING OLD BACKUPS...`);
-                    for (let f of pFiles.slice(4)) { await fetch(`${listUrl}/${f.name}`, { method: 'DELETE', headers, body: JSON.stringify({ message: "Roll", sha: f.sha }) }); }
-                }
-                if (pFiles.length > 0) nextNum = (parseInt(pFiles[0].name.split('_').pop()) || 0) + 1;
-            }
-            updateUI(70, "COMPRESSING DATA...");
-            const now = new Date(), bbb = now.toISOString().split('T')[0].replace(/-/g, ''), ccc = now.getHours().toString().padStart(2, '0') + now.getMinutes().toString().padStart(2, '0');
-            const fileName = `${currentCat[0].toUpperCase()}_${projName}_${bbb}_${ccc}_${nextNum.toString().padStart(2,'0')}.json`;
-            updateUI(90, "UPLOADING TO CLOUD...");
-            const upRes = await fetch(`${listUrl}/${fileName}`, { method: 'PUT', headers, body: JSON.stringify({ message: `Backup: ${projName}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(portfolio_data[currentProj.id], null, 2)))) }) });
-            if (upRes.ok) { updateUI(100, "SUCCESSFULLY BACKED UP"); sText.className = "task-status success"; setTimeout(() => taskEl.remove(), 4000); }
-            else throw new Error();
-        } catch (e) { updateUI(100, "BACKUP ERROR"); sText.className = "task-status error"; }
-    }
 
     function autoFitView() {
         const items = Array.from(vp.querySelectorAll('.miro-item'));
@@ -453,7 +348,6 @@
         });
         const cW = maxX - minX, cH = maxY - minY, pad = 120;
         zoom = Math.min((window.innerWidth - pad)/cW, (window.innerHeight - pad)/cH, 1.1);
-        zoom = Math.max(zoom, 0.15);
         panX = (window.innerWidth/2) - (minX + cW/2)*zoom; panY = (window.innerHeight/2) - (minY + cH/2)*zoom;
         updateViewport();
     }
@@ -463,20 +357,11 @@
         historyStack.push(JSON.stringify(state)); if(historyStack.length > 30) historyStack.shift();
     }
 
-    function undo() {
-        if(!isAdmin || historyStack.length <= 1) return; historyStack.pop();
-        const prevState = JSON.parse(historyStack[historyStack.length - 1]);
-        Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
-        prevState.forEach(it => createMiroItem(it.html, it.x, it.y, it.w, it.h));
-        saveToCloud();
-    }
-
     window.addEventListener('keydown', (e) => {
         if (e.target.isContentEditable || !isAdmin) return;
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
         if (e.key === 'Delete' || e.key === 'Backspace') {
             const sel = document.querySelectorAll('.miro-item.selected');
-            if (sel.length > 0) { e.preventDefault(); if(confirm(`Delete ${sel.length} items?`)) { sel.forEach(el => el.remove()); saveHistory(); saveToCloud(); } }
+            if (sel.length > 0 && confirm(`Delete ${sel.length} items?`)) { sel.forEach(el => el.remove()); saveToCloud(); }
         }
     });
 
@@ -490,10 +375,8 @@
         if(lvl===2)renderCatGrid(); if(lvl===3)renderProjGrid(); 
         if(lvl===4){
             Array.from(vp.children).forEach(el => { if(el.classList.contains('miro-item')) el.remove(); });
-            const p = portfolio_data[currentProj.id];
-            (p.layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); 
-            document.getElementById('lvl4Title').innerText=p.title; 
-            document.getElementById('lvl4Title').contentEditable = isAdmin;
+            (portfolio_data[currentProj.id].layout||[]).forEach(it=>createMiroItem(it.html,it.x,it.y,it.w,it.h)); 
+            document.getElementById('lvl4Title').innerText=portfolio_data[currentProj.id].title; 
             document.getElementById('lvl4CatTag').innerText=currentCat;
             document.getElementById('adminControls').style.display = isAdmin ? 'flex' : 'none';
             setTimeout(autoFitView, 100);
@@ -502,20 +385,13 @@
         document.documentElement.style.setProperty('--bg-blur', [0,15,30,0][lvl-1]+'px'); 
         document.getElementById('mainNav').classList.toggle('visible', lvl>1); 
         document.getElementById('backBtnContainer').classList.toggle('show', lvl>1); 
-        const isL3A = (lvl===3 && isAdmin);
-        document.getElementById('addProjBtn').style.display=isL3A?'block':'none';
-        document.getElementById('restoreProjBtn').style.display=isL3A?'block':'none';
+        document.getElementById('addProjBtn').style.display=(lvl===3 && isAdmin)?'block':'none';
     }
 
     async function manualSaveWithBackup() {
         const btn = document.getElementById('manualSaveBtn');
-        try {
-            btn.innerText = "SAVING JSON..."; btn.style.background = "#4285F4";
-            await saveToCloud();
-            await runAutoBackup("Manual");
-            btn.innerText = "ALL SYNCED"; btn.style.background = "#34A853";
-            setTimeout(() => { btn.innerText = "SAVE & BACKUP"; btn.style.background = "#000"; }, 3000);
-        } catch (e) { btn.innerText = "SYNC FAILED"; btn.style.background = "#EA4335"; }
+        btn.innerText = "SAVING..."; await saveToCloud();
+        btn.innerText = "SAVED"; setTimeout(() => btn.innerText = "SAVE & BACKUP", 2000);
     }
 
     const cvs = document.getElementById('particleCanvas'), ctx = cvs.getContext('2d');
@@ -532,13 +408,13 @@
         }
     }
 
-    function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%; pointer-events:auto;"></iframe>`, '400px', '400px', '480px', '270px'); saveHistory(); saveToCloud(); }
+    function addLink() { const url = prompt("Link:"); if(!url) return; createMiroItem(`<iframe src="${url}" style="width:100%; height:100%;"></iframe>`, '400px', '400px', '480px', '270px'); saveToCloud(); }
     function renderCatGrid() { const cats=['Architecture','Computational','Interest','Photo','Ongoing']; document.getElementById('catGrid').innerHTML=cats.map(cat=>{const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(cat[0].toLowerCase())); const t=(ps.length&&portfolio_data[ps[0]].thumbs)?getAssetUrl(portfolio_data[ps[0]].thumbs[0]):''; return `<div class="stack-container" onclick="showLevel(3, '${cat}')"><div class="neural-stack"><div class="neural-layer layer-2"></div><div class="neural-layer layer-1">${t?`<img src="${t}">`:''}</div></div><div class="stack-label">${cat}</div></div>`;}).join(''); }
     function renderProjGrid() { const ps=Object.keys(portfolio_data).filter(id=>id.startsWith(currentCat[0].toLowerCase())).map(id=>({id,...portfolio_data[id]})); document.getElementById('projGrid').innerHTML=ps.map(p=>{const t=(p.thumbs||[]).map(url => getAssetUrl(url)); const delBtn = isAdmin ? `<div class="delete-proj-btn" onclick="event.stopPropagation(); deleteProject('${p.id}', '${p.title}')">×</div>` : ''; return `<div class="stack-container" onclick="openProject('${p.id}')">${delBtn}<div class="neural-stack"><div class="neural-layer layer-3">${t[2]?`<img src="${t[2]}">`:''}</div><div class="neural-layer layer-2">${t[1]?`<img src="${t[1]}">`:''}</div><div class="neural-layer layer-1">${t[0]?`<img src="${t[0]}">`:''}</div></div><div class="stack-label">${p.title}</div></div>`;}).join(''); }
     function createNewProject() { const title = prompt("Title:"); if(!title) return; const id = currentCat[0].toLowerCase() + Date.now(); portfolio_data[id] = { title, layout: [], thumbs: [] }; saveToCloud().then(() => renderProjGrid()); }
     async function deleteProject(id, title) { if (prompt(`Delete [ ${title} ]? Type name:`) === title) { delete portfolio_data[id]; await saveToCloud(); renderProjGrid(); } }
     function openProject(id) { currentProj={id,...portfolio_data[id]}; showLevel(4); }
-    function handleBack() { if (currentLvl === 4) { if(isAdmin) runAutoBackup("BackBtn"); showLevel(3); } else if (currentLvl === 3) showLevel(2); else showLevel(1); }
+    function handleBack() { if (currentLvl === 4) showLevel(3); else if (currentLvl === 3) showLevel(2); else showLevel(1); }
     function checkUnlock() { const p=prompt("Pass:"); if(p==="li123"){const t=prompt("Token:"); if(t&&t.startsWith('ghp_')){localStorage.setItem('gh_token', t.trim()); isAdmin=true; document.getElementById('adminInfo').innerText="ADMIN ACTIVE"; showLevel(currentLvl);}}}
     function initParticles() { cvs.width=window.innerWidth; cvs.height=window.innerHeight; pts=Array.from({length:80},()=>new Particle()); }
     function animate() { ctx.clearRect(0,0,cvs.width,cvs.height); let px=m.smX, py=m.smY; m.smX+=(m.x-m.smX)*0.1; m.smY+=(m.y-m.smY)*0.1; m.vx=m.smX-px; m.vy=m.smY-py; pts.forEach(p=>p.update()); requestAnimationFrame(animate); }
